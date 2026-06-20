@@ -82,7 +82,7 @@ const map = new maplibregl.Map({
       },
       ws: {
         type: 'vector',
-        url: 'pmtiles://data/watersheds.pmtiles',
+        url: 'pmtiles://data/tiles/watersheds.pmtiles',
       },
     },
     layers: [
@@ -125,8 +125,8 @@ const map = new maplibregl.Map({
   },
   center: [HOUSTON.lng, HOUSTON.lat],
   zoom: HOUSTON.zoom,
-  minZoom: 1,
-  maxZoom: 10,
+  minZoom: 2,
+  maxZoom: 8,
   dragRotate: false,
   pitchWithRotate: false,
   maxPitch: 0,
@@ -137,7 +137,7 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-ri
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
 // ── Metadata (updated-at + legend) ────────────────────────────────────────────
-fetch('data/metadata.json')
+fetch('data/tiles/metadata.json')
   .then(r => r.json())
   .then(meta => {
     if (meta.updated_at) {
