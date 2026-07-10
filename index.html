@@ -228,9 +228,6 @@ const panelToggle = document.getElementById('panel-toggle');
 panelToggle.addEventListener('click', () => {
   panel.classList.toggle('collapsed');
 });
-panel.addEventListener('transitionend', (e) => {
-  if (e.propertyName === 'width') map.resize();
-});
 </script>
 </body>
 </html>

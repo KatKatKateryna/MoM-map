@@ -41,12 +41,13 @@ body {
   #brand-title { font-size: 15px; }
 }
 
-#body-content { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+#body-content { position: relative; flex: 1 1 auto; min-height: 0; }
 
-#map { position: relative; flex: 1 1 auto; min-height: 0; }
+#map { position: absolute; inset: 0; }
 
 #panel {
-  flex-shrink: 0; width: var(--panel-width); overflow-y: auto; overflow-x: hidden;
+  position: absolute; top: 0; left: 0; bottom: 0; z-index: 12;
+  width: var(--panel-width); overflow-y: auto; overflow-x: hidden;
   background: var(--surface-1);
   border-right: 1px solid var(--border-hairline);
   box-shadow: 1px 0 6px rgba(11, 11, 11, 0.06);
