@@ -1,0 +1,105 @@
+:root {
+  --header-height: 60px;
+  --panel-width: 300px;
+
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --border-hairline: rgba(11, 11, 11, 0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+  display: flex; flex-direction: column;
+}
+
+#brand-header {
+  flex-shrink: 0; z-index: 20; height: var(--header-height);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-hairline);
+  box-shadow: 0 1px 6px rgba(11, 11, 11, 0.08);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+}
+#brand-header .app-header__brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+#brand-logo-link { display: block; line-height: 0; flex-shrink: 0; }
+#brand-logo-link img { height: 28px; width: auto; display: block; }
+
+#brand-title {
+  font-size: 18px; font-weight: 600; letter-spacing: 0.01em; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  :root { --panel-width: 240px; }
+  #brand-header { padding: 0 12px; }
+  #brand-logo-link img { height: 22px; }
+  #brand-title { font-size: 15px; }
+}
+
+#body-content { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+
+#map { position: relative; flex: 1 1 auto; min-height: 0; }
+
+#panel {
+  flex-shrink: 0; width: var(--panel-width); overflow-y: auto; overflow-x: hidden;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border-hairline);
+  box-shadow: 1px 0 6px rgba(11, 11, 11, 0.06);
+  padding: 20px;
+  display: flex; flex-direction: column;
+  transition: width .25s ease, padding .25s ease;
+}
+#panel.collapsed {
+  width: 0; padding: 0; border-right: none; box-shadow: none;
+}
+
+#panel-toggle {
+  position: absolute; top: 12px; left: -16px;
+  width: 32px; height: 32px; border-radius: 0; padding: 0 0px 0 0;
+  display: flex; align-items: center; justify-content: flex-end;
+  background: var(--surface-1); color: var(--text-muted);
+  border: 1px solid var(--border-hairline);
+  box-shadow: 0 1px 4px rgba(11, 11, 11, 0.18);
+  cursor: pointer; z-index: 15;
+  transition: left .25s ease;
+}
+#panel-toggle:hover { left: 0; color: var(--text-primary); }
+#panel-toggle svg { width: 16px; height: 16px; transition: transform .25s ease; }
+#panel.collapsed ~ #panel-toggle svg { transform: rotate(180deg); }
+.side-panel__section + .side-panel__section { margin-top: 28px; }
+#panel .side-panel__section--bottom { margin-top: auto; }
+.side-panel__heading, #legend h4 {
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 10px;
+}
+.side-panel__text { font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+.side-panel__text + .side-panel__text { margin-top: 8px; }
+.side-panel__link { color: var(--text-secondary); text-decoration: underline; }
+.side-panel__link:hover { color: var(--text-primary); }
+
+.side-panel__footer { text-align: center; }
+.side-panel__footer .side-panel__text { font-size: 12px; line-height: 1.2; }
+
+#updated-at { font-size: 14px; color: var(--text-muted); margin-top: 16px; }
+
+.leg { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-primary); margin-bottom: 10px; }
+.swatch {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(11, 11, 11, 0.12);
+}
+
+.maplibregl-popup-content { font-family: inherit; font-size: 15px; padding: 10px 12px; min-width: 190px; max-height: 260px; overflow-y: auto; }
+.pop-title { font-weight: 700; font-size: 16px; margin-bottom: 6px; color: #222; }
+.pop-badge {
+  display: inline-block; padding: 2px 9px; border-radius: 10px;
+  color: #fff; font-size: 13px; font-weight: 700; margin-bottom: 7px;
+}
+.pop-row { display: flex; justify-content: space-between; align-items: flex-start;
+           gap: 8px; margin-bottom: 3px; font-size: 15px; }
+.pop-key { color: #888; flex-shrink: 0; }
+.pop-row span:last-child { text-align: right; }
