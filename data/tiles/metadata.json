@@ -1,11 +1,11 @@
 {
-  "updated_at": "2026-07-21 12:00 UTC",
-  "csv": "Final_Attributes_2026072112HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
+  "updated_at": "2026-07-21 18:00 UTC",
+  "csv": "Final_Attributes_2026072118HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
   "alert_levels": [
     "Warning",
     "Watch",
     "Advisory",
     "Information"
   ],
-  "generated": "2026-07-21T20:03:37.136751+00:00"
+  "generated": "2026-07-22T04:50:52.919389+00:00"
 }
