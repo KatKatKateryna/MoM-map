@@ -43,7 +43,13 @@
       <polyline points="11 6 5 12 11 18"></polyline>
     </svg>
   </button>
-  <div id="map"></div>
+  <div id="map-area">
+    <div id="map"></div>
+    <div id="timestamp-label"></div>
+    <div id="time-slider-bar">
+      <input type="range" id="time-slider" min="0" max="0" value="0" step="1" aria-label="Snapshot timestamp">
+    </div>
+  </div>
 </div>
 
 <script>
@@ -75,63 +81,9 @@ const map = new maplibregl.Map({
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxzoom: 19,
       },
-      ws: {
-        type: 'vector',
-        url: 'pmtiles://data/tiles/watersheds.pmtiles',
-      },
     },
     layers: [
       { id: 'osm', type: 'raster', source: 'osm' },
-      {
-        id: 'ws-fill',
-        type: 'fill',
-        source: 'ws',
-        'source-layer': 'watersheds',
-        paint: {
-          'fill-color': [
-            'match', ['get', 'alert'],
-            'Warning',     '#f57c00',
-            'Watch',       '#fbc02d',
-            'Advisory',    '#fff176',
-            'Information', '#43a047',
-            NO_DATA_COLOR
-          ],
-          'fill-opacity': 0.55,
-        },
-      },
-      {
-        id: 'ws-outline',
-        type: 'line',
-        source: 'ws',
-        'source-layer': 'watersheds',
-        paint: {
-          'line-color': [
-            'match', ['get', 'alert'],
-            'Warning',     '#e65100',
-            'Watch',       '#f57f17',
-            'Advisory',    '#f9a825',
-            'Information', '#2e7d32',
-            '#bdbdbd'
-          ],
-          'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 0.8, 12, 1.5],
-        },
-      },
-      {
-        id: 'ws-highlight',
-        type: 'fill',
-        source: 'ws',
-        'source-layer': 'watersheds',
-        filter: ['==', 'pfaf_id', ''],
-        paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.35 },
-      },
-      {
-        id: 'ws-highlight-outline',
-        type: 'line',
-        source: 'ws',
-        'source-layer': 'watersheds',
-        filter: ['==', 'pfaf_id', ''],
-        paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
-      },
     ],
   },
   center: [HOUSTON.lng, HOUSTON.lat],
@@ -164,12 +116,115 @@ function formatUpdatedAt(s) {
   return `${dateStr} at ${timeStr} UTC`;
 }
 
+// ── Snapshots (pmtiles source swap driven by the bottom slider) ───────────────
+const timestampLabel = document.getElementById('timestamp-label');
+const slider = document.getElementById('time-slider');
+let chronological = []; // oldest → newest; last item is the most recent snapshot
+
+function addSnapshotLayers(entry) {
+  for (const id of ['ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill']) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  if (map.getSource('ws')) map.removeSource('ws');
+
+  map.addSource('ws', { type: 'vector', url: `pmtiles://data/tiles/${entry.file}` });
+
+  map.addLayer({
+    id: 'ws-fill',
+    type: 'fill',
+    source: 'ws',
+    'source-layer': 'watersheds',
+    paint: {
+      'fill-color': [
+        'match', ['get', 'alert'],
+        'Warning',     '#f57c00',
+        'Watch',       '#fbc02d',
+        'Advisory',    '#fff176',
+        'Information', '#43a047',
+        NO_DATA_COLOR
+      ],
+      'fill-opacity': 0.55,
+    },
+  });
+  map.addLayer({
+    id: 'ws-outline',
+    type: 'line',
+    source: 'ws',
+    'source-layer': 'watersheds',
+    paint: {
+      'line-color': [
+        'match', ['get', 'alert'],
+        'Warning',     '#e65100',
+        'Watch',       '#f57f17',
+        'Advisory',    '#f9a825',
+        'Information', '#2e7d32',
+        '#bdbdbd'
+      ],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 0.8, 12, 1.5],
+    },
+  });
+  map.addLayer({
+    id: 'ws-highlight',
+    type: 'fill',
+    source: 'ws',
+    'source-layer': 'watersheds',
+    filter: ['==', 'pfaf_id', ''],
+    paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.35 },
+  });
+  map.addLayer({
+    id: 'ws-highlight-outline',
+    type: 'line',
+    source: 'ws',
+    'source-layer': 'watersheds',
+    filter: ['==', 'pfaf_id', ''],
+    paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
+  });
+}
+
+function showLabel(entry) {
+  const label = formatUpdatedAt(entry.updated_at);
+  timestampLabel.textContent = label;
+  document.getElementById('updated-at').textContent = `Updated on ${label}`;
+}
+
+function selectSnapshot(entry) {
+  popup.remove();
+  addSnapshotLayers(entry);
+  showLabel(entry);
+}
+
+function initSnapshots(meta) {
+  const snapshots = (meta.snapshots || []).slice().sort((a, b) => a.index - b.index);
+  if (!snapshots.length) return;
+  chronological = snapshots.slice().sort((a, b) => b.index - a.index); // oldest → newest
+
+  slider.min = 0;
+  slider.max = chronological.length - 1;
+  slider.value = chronological.length - 1; // most recent snapshot by default
+  selectSnapshot(chronological[chronological.length - 1]);
+
+  // The label updates on every tick, but swapping the tile layer means
+  // fetching a new (multi-MB) pmtiles archive, so it's debounced rather than
+  // fired on every single pixel of drag — it still responds shortly after
+  // the slider pauses while dragging, not only once released.
+  let swapTimer = null;
+  slider.addEventListener('input', () => {
+    const entry = chronological[+slider.value];
+    showLabel(entry);
+    clearTimeout(swapTimer);
+    swapTimer = setTimeout(() => selectSnapshot(entry), 150);
+  });
+  slider.addEventListener('change', () => {
+    clearTimeout(swapTimer);
+    selectSnapshot(chronological[+slider.value]);
+  });
+}
+
 fetch('data/tiles/metadata.json')
   .then(r => r.json())
   .then(meta => {
-    if (meta.updated_at) {
-      document.getElementById('updated-at').textContent = `Updated on ${formatUpdatedAt(meta.updated_at)}`;
-    }
+    const run = () => initSnapshots(meta);
+    if (map.loaded()) run(); else map.once('load', run);
     updateLegend();
   });
 
@@ -228,6 +283,16 @@ const panelToggle = document.getElementById('panel-toggle');
 panelToggle.addEventListener('click', () => {
   panel.classList.toggle('collapsed');
 });
+
+// In portrait viewports, interacting with the map or slider closes the panel
+// so it doesn't cover the content underneath.
+function isPortrait() { return window.innerWidth <= window.innerHeight; }
+function closePanelIfPortrait() {
+  if (isPortrait()) panel.classList.add('collapsed');
+}
+map.on('click', closePanelIfPortrait);
+map.on('movestart', closePanelIfPortrait); // covers dragging/panning, plus zoom/rotate/keyboard nav
+document.getElementById('time-slider-bar').addEventListener('click', closePanelIfPortrait);
 </script>
 </body>
 </html>
