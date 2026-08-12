@@ -1,95 +1,11 @@
 {
-  "snapshots": [
-    {
-      "updated_at": "2026-08-09 18:00 UTC",
-      "csv": "Final_Attributes_2026080918HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080918.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:27:51.276147+00:00",
-      "index": 0
-    },
-    {
-      "updated_at": "2026-08-08 18:00 UTC",
-      "csv": "Final_Attributes_2026080818HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080818.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:28:46.777324+00:00",
-      "index": 1
-    },
-    {
-      "updated_at": "2026-08-07 18:00 UTC",
-      "csv": "Final_Attributes_2026080718HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080718.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:29:42.155357+00:00",
-      "index": 2
-    },
-    {
-      "updated_at": "2026-08-06 18:00 UTC",
-      "csv": "Final_Attributes_2026080618HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080618.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:30:37.372773+00:00",
-      "index": 3
-    },
-    {
-      "updated_at": "2026-08-05 18:00 UTC",
-      "csv": "Final_Attributes_2026080518HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080518.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:31:32.392795+00:00",
-      "index": 4
-    },
-    {
-      "updated_at": "2026-08-04 18:00 UTC",
-      "csv": "Final_Attributes_2026080418HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080418.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:32:27.787503+00:00",
-      "index": 5
-    },
-    {
-      "updated_at": "2026-08-03 18:00 UTC",
-      "csv": "Final_Attributes_2026080318HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
-      "file": "watersheds_2026080318.pmtiles",
-      "alert_levels": [
-        "Warning",
-        "Watch",
-        "Advisory",
-        "Information"
-      ],
-      "generated": "2026-08-11T20:33:22.830581+00:00",
-      "index": 6
-    }
-  ]
+  "updated_at": "2026-08-10 12:00 UTC",
+  "csv": "Final_Attributes_2026081012HWRF%2BMOM%2BDFO%2BVIIRSUpdated_PDC.csv",
+  "alert_levels": [
+    "Warning",
+    "Watch",
+    "Advisory",
+    "Information"
+  ],
+  "generated": "2026-08-12T03:41:12.479454+00:00"
 }
