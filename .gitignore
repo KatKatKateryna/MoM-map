@@ -223,4 +223,3 @@ pygeoapi-config.local.yml
 pygeoapi-openapi.yml
 
 *.shp
-data/tiles/*
