@@ -17,6 +17,10 @@
     </a>
     <h1 id="brand-title">MoM Flood Alert Map</h1>
   </div>
+  <div id="snapshot-selector" hidden>
+    <span id="snapshot-label">Updated on</span>
+    <select id="snapshot-select" aria-label="Select snapshot date"></select>
+  </div>
 </header>
 
 <div id="body-content">
@@ -30,7 +34,6 @@
         <h4>Alert Level</h4>
         <div class="leg"><div class="swatch" style="background:#e0e0e0;border-color:#aaa"></div>No data</div>
       </div>
-      <div id="updated-at"></div>
     </section>
     <section class="side-panel__section side-panel__section--bottom side-panel__footer">
       <p class="side-panel__text">© 2026 Blu-H ASBL</p>
@@ -45,10 +48,6 @@
   </button>
   <div id="map-area">
     <div id="map"></div>
-    <div id="timestamp-label"></div>
-    <div id="time-slider-bar">
-      <input type="range" id="time-slider" min="0" max="0" value="0" step="1" aria-label="Snapshot timestamp">
-    </div>
   </div>
 </div>
 
@@ -116,11 +115,7 @@ function formatUpdatedAt(s) {
   return `${dateStr} at ${timeStr} UTC`;
 }
 
-// ── Snapshots (pmtiles source swap driven by the bottom slider) ───────────────
-const timestampLabel = document.getElementById('timestamp-label');
-const slider = document.getElementById('time-slider');
-let chronological = []; // oldest → newest; last item is the most recent snapshot
-
+// ── Snapshots (pmtiles source swap driven by the header dropdown) ─────────────
 function addSnapshotLayers(entry) {
   for (const id of ['ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill']) {
     if (map.getLayer(id)) map.removeLayer(id);
@@ -181,42 +176,30 @@ function addSnapshotLayers(entry) {
   });
 }
 
-function showLabel(entry) {
-  const label = formatUpdatedAt(entry.updated_at);
-  timestampLabel.textContent = label;
-  document.getElementById('updated-at').textContent = `Updated on ${label}`;
-}
-
 function selectSnapshot(entry) {
   popup.remove();
   addSnapshotLayers(entry);
-  showLabel(entry);
 }
 
 function initSnapshots(meta) {
   const snapshots = (meta.snapshots || []).slice().sort((a, b) => a.index - b.index);
   if (!snapshots.length) return;
-  chronological = snapshots.slice().sort((a, b) => b.index - a.index); // oldest → newest
 
-  slider.min = 0;
-  slider.max = chronological.length - 1;
-  slider.value = chronological.length - 1; // most recent snapshot by default
-  selectSnapshot(chronological[chronological.length - 1]);
+  const selector = document.getElementById('snapshot-selector');
+  const select = document.getElementById('snapshot-select');
+  for (const entry of snapshots) {
+    const opt = document.createElement('option');
+    opt.value = entry.index;
+    opt.textContent = formatUpdatedAt(entry.updated_at);
+    select.appendChild(opt);
+  }
+  select.value = snapshots[0].index; // index 0 = most recent
+  selector.hidden = false;
+  selectSnapshot(snapshots[0]);
 
-  // The label updates on every tick, but swapping the tile layer means
-  // fetching a new (multi-MB) pmtiles archive, so it's debounced rather than
-  // fired on every single pixel of drag — it still responds shortly after
-  // the slider pauses while dragging, not only once released.
-  let swapTimer = null;
-  slider.addEventListener('input', () => {
-    const entry = chronological[+slider.value];
-    showLabel(entry);
-    clearTimeout(swapTimer);
-    swapTimer = setTimeout(() => selectSnapshot(entry), 150);
-  });
-  slider.addEventListener('change', () => {
-    clearTimeout(swapTimer);
-    selectSnapshot(chronological[+slider.value]);
+  select.addEventListener('change', () => {
+    const entry = snapshots.find(s => s.index === +select.value);
+    selectSnapshot(entry);
   });
 }
 
@@ -291,8 +274,7 @@ function closePanelIfPortrait() {
   if (isPortrait()) panel.classList.add('collapsed');
 }
 map.on('click', closePanelIfPortrait);
-map.on('movestart', closePanelIfPortrait); // covers dragging/panning, plus zoom/rotate/keyboard nav
-document.getElementById('time-slider-bar').addEventListener('click', closePanelIfPortrait);
+map.on('movestart', (e) => { if (e.originalEvent) closePanelIfPortrait(); }); // only user-initiated moves, not programmatic resize
 </script>
 </body>
 </html>
