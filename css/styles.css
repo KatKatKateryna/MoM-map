@@ -100,7 +100,10 @@ body {
 }
 
 #snapshot-selector {
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0;
+  display: none; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0;
+}
+#snapshot-selector.ready {
+  display: flex;
 }
 #snapshot-label {
   font-size: 13px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0;

@@ -17,7 +17,7 @@
     </a>
     <h1 id="brand-title">MoM Flood Alert Map</h1>
   </div>
-  <div id="snapshot-selector" hidden>
+  <div id="snapshot-selector">
     <span id="snapshot-label">Updated on</span>
     <select id="snapshot-select" aria-label="Select snapshot date"></select>
   </div>
@@ -53,7 +53,7 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const HOUSTON = { lng: -95.37, lat: 29.76, zoom: 7 };
+const DEFAULT_VIEW = { lng: 0, lat: 20, zoom: 2 };
 
 const ALERT_COLOR = {
   Warning:     '#f57c00',
@@ -85,8 +85,8 @@ const map = new maplibregl.Map({
       { id: 'osm', type: 'raster', source: 'osm' },
     ],
   },
-  center: [HOUSTON.lng, HOUSTON.lat],
-  zoom: HOUSTON.zoom,
+  center: [DEFAULT_VIEW.lng, DEFAULT_VIEW.lat],
+  zoom: DEFAULT_VIEW.zoom,
   minZoom: 2,
   maxZoom: 8,
   dragRotate: false,
@@ -194,7 +194,7 @@ function initSnapshots(meta) {
     select.appendChild(opt);
   }
   select.value = snapshots[0].index; // index 0 = most recent
-  selector.hidden = false;
+  selector.classList.add('ready');
   selectSnapshot(snapshots[0]);
 
   select.addEventListener('change', () => {
