@@ -55,6 +55,28 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 const DEFAULT_VIEW = { lng: 0, lat: 20, zoom: 2 };
 
+// ── URL hash  (#zoom/lat/lng) ─────────────────────────────────────────────────
+function parseHash() {
+  const m = /^#([\d.]+)\/([-\d.]+)\/([-\d.]+)$/.exec(location.hash);
+  if (!m) return null;
+  const zoom = parseFloat(m[1]), lat = parseFloat(m[2]), lng = parseFloat(m[3]);
+  if (isNaN(zoom) || isNaN(lat) || isNaN(lng)) return null;
+  return { zoom, lat, lng };
+}
+
+function updateHash() {
+  const { lng, lat } = map.getCenter();
+  const zoom = map.getZoom();
+  history.replaceState(null, '', `#${zoom.toFixed(2)}/${lat.toFixed(4)}/${lng.toFixed(4)}`);
+}
+
+window.addEventListener('hashchange', () => {
+  const view = parseHash();
+  if (view) map.easeTo({ center: [view.lng, view.lat], zoom: view.zoom });
+});
+
+const initialView = parseHash() || DEFAULT_VIEW;
+
 const ALERT_COLOR = {
   Warning:     '#f57c00',
   Watch:       '#fbc02d',
@@ -85,8 +107,8 @@ const map = new maplibregl.Map({
       { id: 'osm', type: 'raster', source: 'osm' },
     ],
   },
-  center: [DEFAULT_VIEW.lng, DEFAULT_VIEW.lat],
-  zoom: DEFAULT_VIEW.zoom,
+  center: [initialView.lng, initialView.lat],
+  zoom: initialView.zoom,
   minZoom: 2,
   maxZoom: 8,
   dragRotate: false,
@@ -96,6 +118,7 @@ const map = new maplibregl.Map({
 
 map.touchZoomRotate.disableRotation();
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+map.on('moveend', updateHash);
 function preferredScaleUnit() {
   try {
     const ms = new Intl.Locale(navigator.language).measurementSystem;
@@ -204,12 +227,13 @@ function initSnapshots(meta) {
 }
 
 fetch('data/tiles/metadata.json')
-  .then(r => r.json())
+  .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
   .then(meta => {
     const run = () => initSnapshots(meta);
     if (map.loaded()) run(); else map.once('load', run);
     updateLegend();
-  });
+  })
+  .catch(err => console.warn('Could not load snapshot metadata:', err));
 
 function updateLegend() {
   const order = ['Warning', 'Watch', 'Advisory', 'Information'];
