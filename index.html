@@ -250,7 +250,7 @@ function updateLegend() {
 }
 
 // ── Click popup ───────────────────────────────────────────────────────────────
-const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '270px', closeOnClick: false });
+const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', closeOnClick: false });
 
 map.on('click', 'ws-fill', (e) => {
   const p = e.features[0].properties;
