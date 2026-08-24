@@ -223,3 +223,6 @@ pygeoapi-config.local.yml
 pygeoapi-openapi.yml
 
 *.shp
+
+# generated per-demo pages (built by .github/actions/build-demo-pages)
+sub_pages/demo_*/index.html

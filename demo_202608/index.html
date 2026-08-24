@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <base href="../">
   <meta charset="UTF-8">
   <title>MoM Flood Alert Map</title>
   <link rel="icon" type="image/png" href="assets/bluh-logo-256.png" />
@@ -54,8 +55,8 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const DEFAULT_VIEW = { lng: 0, lat: 20, zoom: 2 };
-const MAX_SNAPSHOTS = 7;
+const DEFAULT_VIEW = { lng: -94.7339, lat: 28.7264, zoom: 6.47 };
+const MAX_SNAPSHOTS = 30;
 
 // ── URL hash  (#zoom/lat/lng) ─────────────────────────────────────────────────
 function parseHash() {
