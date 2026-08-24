@@ -266,7 +266,7 @@ map.on('click', 'ws-fill', (e) => {
     ['Watershed ID',  p.pfaf_id],
     ['Name',          p.name],
     ['Regions',       p.regions],
-    ['Watershed area', p.area_km2 != null ? `${Number(p.area_km2).toLocaleString()} km²` : null],
+    ['Watershed area', p.area_km2 != null ? `${Math.round(p.area_km2).toLocaleString()} km²` : null],
     ['Riverine risk', p.riverine_risk != null ? `${p.riverine_risk} / 100` : null],
     ['Coastal risk',  p.coastal_risk != null ? `${p.coastal_risk} / 100` : null],
   ].filter(isShown);
