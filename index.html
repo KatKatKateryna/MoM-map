@@ -250,7 +250,7 @@ function updateLegend() {
 }
 
 // ── Click popup ───────────────────────────────────────────────────────────────
-const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '270px' });
+const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '270px', closeOnClick: false });
 
 map.on('click', 'ws-fill', (e) => {
   const p = e.features[0].properties;
@@ -260,27 +260,45 @@ map.on('click', 'ws-fill', (e) => {
   map.setFilter('ws-highlight', ['==', 'pfaf_id', p.pfaf_id]);
   map.setFilter('ws-highlight-outline', ['==', 'pfaf_id', p.pfaf_id]);
 
-  const rows = [
+  const isShown = ([, v]) => v != null && v !== 'null' && v !== 'None' && v !== '';
+
+  const watershedRows = [
     ['Watershed ID',  p.pfaf_id],
     ['Name',          p.name],
     ['Regions',       p.regions],
+    ['Watershed area', p.area_km2 != null ? `${Number(p.area_km2).toLocaleString()} km²` : null],
+    ['Riverine risk', p.riverine_risk != null ? `${p.riverine_risk} / 100` : null],
+    ['Coastal risk',  p.coastal_risk != null ? `${p.coastal_risk} / 100` : null],
+  ].filter(isShown);
+
+  const snapshotRows = [
     ['Status',        p.status],
     ['Days to peak',  p.days_until_peak != null ? p.days_until_peak : null],
-  ].filter(([, v]) => v != null && v !== 'null' && v !== 'None' && v !== '');
+    ['Hazard score',  p.hazard_score != null ? `${p.hazard_score} / 100` : null],
+  ].filter(isShown);
 
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rowsHtml = rows => rows.map(([k, v]) =>
+    `<div class="pop-row"><span class="pop-key">${esc(k)}</span><span>${esc(v)}</span></div>`
+  ).join('');
+
   popup.setLngLat(e.lngLat).setHTML(`
     <div class="pop-title">${esc(p.name || 'Watershed')}</div>
     <div><span class="pop-badge" style="background:${color}">${esc(alert)}</span></div>
-    ${rows.map(([k, v]) =>
-      `<div class="pop-row"><span class="pop-key">${esc(k)}</span><span>${esc(v)}</span></div>`
-    ).join('')}
+    ${rowsHtml(watershedRows)}
+    ${watershedRows.length && snapshotRows.length ? '<hr class="pop-divider">' : ''}
+    ${rowsHtml(snapshotRows)}
   `).addTo(map);
 });
 
 popup.on('close', () => {
   map.setFilter('ws-highlight', ['==', 'pfaf_id', '']);
   map.setFilter('ws-highlight-outline', ['==', 'pfaf_id', '']);
+});
+
+map.on('click', (e) => {
+  const features = map.queryRenderedFeatures(e.point, { layers: ['ws-fill'] });
+  if (!features.length) popup.remove();
 });
 
 map.on('mouseenter', 'ws-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
