@@ -69,7 +69,7 @@ function parseHash() {
 function updateHash() {
   const { lng, lat } = map.getCenter();
   const zoom = map.getZoom();
-  history.replaceState(null, '', `#${zoom.toFixed(2)}/${lat.toFixed(4)}/${lng.toFixed(4)}`);
+  history.replaceState(null, '', `${location.pathname}${location.search}#${zoom.toFixed(2)}/${lat.toFixed(4)}/${lng.toFixed(4)}`);
 }
 
 window.addEventListener('hashchange', () => {
