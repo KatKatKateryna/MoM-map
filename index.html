@@ -257,9 +257,6 @@ map.on('click', 'ws-fill', (e) => {
   const alert = p.alert || 'No data';
   const color = ALERT_COLOR[alert] ?? '#999';
 
-  map.setFilter('ws-highlight', ['==', 'pfaf_id', p.pfaf_id]);
-  map.setFilter('ws-highlight-outline', ['==', 'pfaf_id', p.pfaf_id]);
-
   const isShown = ([, v]) => v != null && v !== 'null' && v !== 'None' && v !== '';
 
   const watershedRows = [
@@ -289,6 +286,9 @@ map.on('click', 'ws-fill', (e) => {
     ${watershedRows.length && snapshotRows.length ? '<hr class="pop-divider">' : ''}
     ${rowsHtml(snapshotRows)}
   `).addTo(map);
+
+  map.setFilter('ws-highlight', ['==', 'pfaf_id', p.pfaf_id]);
+  map.setFilter('ws-highlight-outline', ['==', 'pfaf_id', p.pfaf_id]);
 });
 
 popup.on('close', () => {
