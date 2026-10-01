@@ -79,6 +79,7 @@ jobs:
           cp js/*.js                       deploy/js/
           cp data/tiles/*.pmtiles          deploy/data/tiles/
           cp data/tiles/metadata.json      deploy/data/tiles/
+          cp -r data/persistent            deploy/data/
           grep -v "^data/tiles/" .gitignore > deploy/.gitignore || true
           touch deploy/.nojekyll
 
