@@ -1,7 +1,7 @@
 name: Build demo pages
 description: >
-  Copies index.html into every demo_* folder that contains a replace.txt,
-  then applies that folder's variable overrides to the copy.
+  Copies index.html into every demo_* folder that contains a replace.txt or add.txt,
+  then applies that folder's variable overrides and added config lines to the copy.
 
 runs:
   using: composite

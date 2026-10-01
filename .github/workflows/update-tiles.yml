@@ -72,9 +72,11 @@ jobs:
 
       - name: Prepare deployment
         run: |
-          mkdir -p deploy/data/tiles deploy/assets
+          mkdir -p deploy/data/tiles deploy/assets deploy/css deploy/js
           cp index.html                    deploy/index.html
+          cp css/styles.css                deploy/css/styles.css
           cp assets/*                      deploy/assets/
+          cp js/*.js                       deploy/js/
           cp data/tiles/*.pmtiles          deploy/data/tiles/
           cp data/tiles/metadata.json      deploy/data/tiles/
           grep -v "^data/tiles/" .gitignore > deploy/.gitignore || true

@@ -1,0 +1,1 @@
+EXTRA_SOURCES.push({ url: ['data/river_plains/pmtiles/river_plains_na_sa_eu.pmtiles', 'data/river_plains/pmtiles/river_plains_as_af_oc.pmtiles'], name: 'River floodplains', opacity: 0.9, brightness: 0.65, color: '#305376' });

@@ -10,6 +10,7 @@ on:
       - '*.html'
       - 'assets/**'
       - 'css/**'
+      - 'js/**'
       - 'sub_pages/**'
       - '.github/actions/build-demo-pages/**'
       - '.github/actions/remove-stale-demo-pages/**'
@@ -40,9 +41,10 @@ jobs:
 
       - name: Prepare deployment
         run: |
-          mkdir -p deploy/assets deploy/css
+          mkdir -p deploy/assets deploy/css deploy/js
           cp index.html                 deploy/index.html
           cp css/styles.css             deploy/css/styles.css
+          cp js/*.js                    deploy/js/
           cp assets/*                   deploy/assets/
           for demo in sub_pages/demo_*/; do
             demo="${demo%/}"
