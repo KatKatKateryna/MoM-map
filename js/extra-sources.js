@@ -7,7 +7,8 @@
 // stops / values / other are optional: missing stops spread GRADIENT_RAMP over the
 // property's min..max, missing values give each known value a CATEGORY_PALETTE
 // color (both read from the tippecanoe tilestats in the archive metadata).
-// `name` sets the legend title (defaults to the archive's name or file name);
+// `name` sets the legend title (defaults to the archive's name or file name) and
+// `description` an optional short text shown under it;
 // for raster sources `color` is only the legend swatch and `brightness` (0..1)
 // darkens the tiles' own colors. `url` can be a list of archives (e.g. a raster
 // split by region): they are drawn as one layer with one legend entry and toggle.
@@ -51,7 +52,7 @@ function colorExpr(c) {
   return ['match', ['to-string', ['get', c.property]], ...pairs, c.other];
 }
 
-function renderExtraLegend(section, title, c, layerIds) {
+function renderExtraLegend(section, title, c, layerIds, description) {
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const fmt = v => v.toLocaleString(undefined, { maximumFractionDigits: 2 });
   const leg = (color, label) => `<div class="leg"><div class="swatch" style="background:${color}"></div>${esc(label)}</div>`;
@@ -74,6 +75,7 @@ function renderExtraLegend(section, title, c, layerIds) {
       ${c.kind === 'single' ? `<span class="swatch" style="background:${c.color}"></span>` : ''}
       <span>${esc(title)}</span>
     </label>
+    ${description ? `<p class="legend-description">${esc(description)}</p>` : ''}
     <div class="legend-body">${body}</div>`;
   section.querySelector('input').addEventListener('change', e => {
     const visibility = e.target.checked ? 'visible' : 'none';
@@ -84,7 +86,7 @@ function renderExtraLegend(section, title, c, layerIds) {
 }
 
 async function addExtraSource(entry, i, section) {
-  const { url, name, opacity = 0.7, color: colorSpec = '#4a7fb5', brightness } = typeof entry === 'string' ? { url: entry } : entry;
+  const { url, name, description, opacity = 0.7, color: colorSpec = '#4a7fb5', brightness } = typeof entry === 'string' ? { url: entry } : entry;
   // Several archives (e.g. a raster split by region) share one legend and toggle
   const urls = [].concat(url);
   const archives = urls.map(u => new pmtiles.PMTiles(u));
@@ -133,7 +135,7 @@ async function addExtraSource(entry, i, section) {
     }
   });
 
-  renderExtraLegend(section, title, legendColor ?? resolveColor(colorSpec), layerIds);
+  renderExtraLegend(section, title, legendColor ?? resolveColor(colorSpec), layerIds, description);
 }
 
 // Legend sections are created up front so they keep the EXTRA_SOURCES order
