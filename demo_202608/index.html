@@ -57,6 +57,7 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 const DEFAULT_VIEW = { lng: -94.7339, lat: 28.7264, zoom: 6.47 };
 const MAX_SNAPSHOTS = 30;
+const DARK_THEME = true;
 // Extra pmtiles layers, kept on one line for replace.txt. Each item is a path or { url, name, description, opacity, color, brightness }:
 //   ['data/a.pmtiles', { url: ['data/b1.pmtiles', 'data/b2.pmtiles'], name: 'B', opacity: 0.7, color: '#555555' }]
 // a url list is drawn as one layer with one toggle; brightness (0..1) darkens raster tiles
@@ -70,9 +71,12 @@ EXTRA_SOURCES.push({
   name: 'River floodplains',
   description: 'Global floodplains at 250 m resolution (GFPLAIN250m, Nardi et al. 2006, 2018), ' +
     'mapped with a geomorphic approach from the NASA SRTM v4.1 elevation model.',
-  opacity: 0.9,
-  brightness: 0.65,
-  color: '#305376',
+  opacity: 0.6,
+  // Lifts the tiles' #4a7fb5 to about #dee8f2, a very light blue
+  brightnessMin: 0.82,
+  // Drawn over the watershed fill, under the watershed borders
+  above: true,
+  color: '#dee8f2',
 });
 </script>
 <script src="js/map.js"></script>

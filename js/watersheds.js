@@ -10,13 +10,25 @@ function formatUpdatedAt(s) {
 }
 
 // ── Snapshots (pmtiles source swap driven by the header dropdown) ─────────────
+const OUTLINE_COLOR = [
+  'match', ['get', 'alert'],
+  'Warning',     '#e65100',
+  'Watch',       '#f57f17',
+  'Advisory',    '#f9a825',
+  'Information', '#2e7d32',
+  '#bdbdbd'
+];
+
 function addSnapshotLayers(entry) {
-  for (const id of ['ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill']) {
+  for (const id of ['ws-hit', 'ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill']) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getSource('ws')) map.removeSource('ws');
 
   map.addSource('ws', { type: 'vector', url: `pmtiles://data/tiles/${entry.file}` });
+  // Only the colored fill goes under extra layers drawn above the watersheds
+  // (extra-sources.js `above`); borders, highlight and the click layer stay on top
+  const fillBeforeId = map.getStyle().layers.find(l => l.metadata?.[ABOVE_WATERSHEDS])?.id;
 
   map.addLayer({
     id: 'ws-fill',
@@ -28,27 +40,20 @@ function addSnapshotLayers(entry) {
         'match', ['get', 'alert'],
         'Warning',     '#f57c00',
         'Watch',       '#fbc02d',
-        'Advisory',    '#fff176',
+        'Advisory',    '#f0f250',
         'Information', '#43a047',
         NO_DATA_COLOR
       ],
       'fill-opacity': 0.55,
     },
-  });
+  }, fillBeforeId);
   map.addLayer({
     id: 'ws-outline',
     type: 'line',
     source: 'ws',
     'source-layer': 'watersheds',
     paint: {
-      'line-color': [
-        'match', ['get', 'alert'],
-        'Warning',     '#e65100',
-        'Watch',       '#f57f17',
-        'Advisory',    '#f9a825',
-        'Information', '#2e7d32',
-        '#bdbdbd'
-      ],
+      'line-color': OUTLINE_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 0.8, 12, 1.5],
     },
   });
@@ -67,6 +72,15 @@ function addSnapshotLayers(entry) {
     'source-layer': 'watersheds',
     filter: ['==', 'pfaf_id', ''],
     paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
+  });
+  // Invisible top fill that takes hover and clicks, so whatever is drawn
+  // between it and ws-fill does not get in the way
+  map.addLayer({
+    id: 'ws-hit',
+    type: 'fill',
+    source: 'ws',
+    'source-layer': 'watersheds',
+    paint: { 'fill-color': '#000000', 'fill-opacity': 0 },
   });
 }
 
@@ -121,7 +135,7 @@ function updateLegend() {
 // ── Click popup ───────────────────────────────────────────────────────────────
 const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', closeOnClick: false });
 
-map.on('click', 'ws-fill', (e) => {
+map.on('click', 'ws-hit', (e) => {
   const p = e.features[0].properties;
   const alert = p.alert || 'No data';
   const color = ALERT_COLOR[alert] ?? '#999';
@@ -166,9 +180,9 @@ popup.on('close', () => {
 });
 
 map.on('click', (e) => {
-  const features = map.queryRenderedFeatures(e.point, { layers: ['ws-fill'] });
+  const features = map.queryRenderedFeatures(e.point, { layers: ['ws-hit'] });
   if (!features.length) popup.remove();
 });
 
-map.on('mouseenter', 'ws-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
-map.on('mouseleave', 'ws-fill', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'ws-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'ws-hit', () => { map.getCanvas().style.cursor = ''; });

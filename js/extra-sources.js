@@ -9,9 +9,12 @@
 // color (both read from the tippecanoe tilestats in the archive metadata).
 // `name` sets the legend title (defaults to the archive's name or file name) and
 // `description` an optional short text shown under it;
-// for raster sources `color` is only the legend swatch and `brightness` (0..1)
-// darkens the tiles' own colors. `url` can be a list of archives (e.g. a raster
+// for raster sources `color` is only the legend swatch, `brightness` (0..1)
+// darkens the tiles' own colors and `brightnessMin` (0..1) lightens them (each
+// channel becomes min + value * (max - min)). `url` can be a list of archives (e.g. a raster
 // split by region): they are drawn as one layer with one legend entry and toggle.
+// `above: true` draws the layer over the watershed fill instead of under it; the
+// watershed borders, highlight and click layer stay on top.
 const GRADIENT_RAMP = ['#ffffcc', '#fd8d3c', '#bd0026'];
 const CATEGORY_PALETTE = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf', '#999999'];
 
@@ -86,7 +89,7 @@ function renderExtraLegend(section, title, c, layerIds, description) {
 }
 
 async function addExtraSource(entry, i, section) {
-  const { url, name, description, opacity = 0.7, color: colorSpec = '#4a7fb5', brightness } = typeof entry === 'string' ? { url: entry } : entry;
+  const { url, name, description, opacity = 0.7, color: colorSpec = '#4a7fb5', brightness, brightnessMin, above = false } = typeof entry === 'string' ? { url: entry } : entry;
   // Several archives (e.g. a raster split by region) share one legend and toggle
   const urls = [].concat(url);
   const archives = urls.map(u => new pmtiles.PMTiles(u));
@@ -94,7 +97,12 @@ async function addExtraSource(entry, i, section) {
   const headers = await Promise.all(archives.map(a => a.getHeader()));
   const metadatas = await Promise.all(archives.map(async a => await a.getMetadata() ?? {}));
   const title = name ?? metadatas[0].name ?? urls[0].split('/').pop().replace(/\.pmtiles$/, '');
-  const beforeId = map.getLayer('ws-fill') ? 'ws-fill' : undefined;
+  // Below the watershed layers, or with `above` over the watershed fill but under its
+  // borders (tagged, so watersheds.js keeps re-adding the fill underneath)
+  const beforeId = above
+    ? (map.getLayer('ws-outline') ? 'ws-outline' : undefined)
+    : (map.getLayer('ws-fill') ? 'ws-fill' : undefined);
+  const tag = above ? { metadata: { [ABOVE_WATERSHEDS]: true } } : {};
   const layerIds = [];
   let legendColor;
 
@@ -122,14 +130,15 @@ async function addExtraSource(entry, i, section) {
             filter: ['==', ['geometry-type'], 'Point'],
             paint: { 'circle-color': color, 'circle-opacity': opacity, 'circle-radius': 3 } },
         ];
-        for (const layer of layers) { map.addLayer(layer, beforeId); layerIds.push(layer.id); }
+        for (const layer of layers) { map.addLayer({ ...layer, ...tag }, beforeId); layerIds.push(layer.id); }
       }
     } else {
       map.addSource(id, { type: 'raster', url: `pmtiles://${url}`, tileSize: 256 });
-      // brightness (0..1) darkens the archive's own colors
+      // brightness (0..1) darkens the archive's own colors, brightnessMin (0..1) lightens them
       const paint = { 'raster-opacity': opacity };
       if (brightness != null) paint['raster-brightness-max'] = brightness;
-      map.addLayer({ id, type: 'raster', source: id, paint }, beforeId);
+      if (brightnessMin != null) paint['raster-brightness-min'] = brightnessMin;
+      map.addLayer({ id, type: 'raster', source: id, paint, ...tag }, beforeId);
       layerIds.push(id);
       legendColor = { kind: 'single', color: typeof colorSpec === 'string' ? colorSpec : '#4a7fb5' };
     }
