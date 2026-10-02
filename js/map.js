@@ -28,6 +28,9 @@ const ALERT_COLOR = {
 };
 const NO_DATA_COLOR = '#e0e0e0';
 
+// Layer metadata key of extra layers drawn above the watershed layers
+const ABOVE_WATERSHEDS = 'mom:above-watersheds';
+
 // ── PMTiles protocol ──────────────────────────────────────────────────────────
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile.bind(protocol));
@@ -35,28 +38,29 @@ maplibregl.addProtocol('pmtiles', protocol.tile.bind(protocol));
 // ── Map ───────────────────────────────────────────────────────────────────────
 const map = new maplibregl.Map({
   container: 'map',
-  style: {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxzoom: 19,
-      },
-    },
-    layers: [
-      { id: 'osm', type: 'raster', source: 'osm' },
-    ],
-  },
+  style: `https://tiles.openfreemap.org/styles/${DARK_THEME ? 'dark' : 'positron'}`,
   center: [initialView.lng, initialView.lat],
   zoom: initialView.zoom,
   minZoom: 2,
-  maxZoom: 9,
+  maxZoom: 10,
   dragRotate: false,
   pitchWithRotate: false,
   maxPitch: 0,
+});
+
+// Positron's water is grey; tint it light blue (the dark theme keeps its own colors)
+const WATER_COLOR = '#bbdbe4';
+const WATERWAY_COLOR = '#8ec2d7';
+map.on('style.load', () => {
+  if (!DARK_THEME) {
+    map.setPaintProperty('water', 'fill-color', WATER_COLOR);
+    map.setPaintProperty('waterway', 'line-color', WATERWAY_COLOR);
+  }
+  // No ocean / sea / gulf / strait names (lake names stay); the label layers differ per style
+  for (const id of ['water_name_point_label', 'water_name_line_label', 'water_name']) {
+    if (!map.getLayer(id)) continue;
+    map.setFilter(id, ['all', map.getFilter(id), ['!', ['in', ['get', 'class'], ['literal', ['ocean', 'sea', 'bay', 'strait']]]]]);
+  }
 });
 
 map.touchZoomRotate.disableRotation();
