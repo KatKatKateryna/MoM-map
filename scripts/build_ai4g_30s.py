@@ -10,10 +10,11 @@ a .empty marker instead and count as no tile. data/temp/ai4g_30s.vrt mosaics the
 (255 = no tile).
 
 --mosaic downloads nothing: it writes the tiles done so far into one global 30" GeoTIFF,
-data/temp/ai4g_30s.tif (0, 1, 2; 255 = no tile yet). It can run while a download does.
+OUT.tif or data/temp/ai4g_30s.tif (0, 1, 2; 255 = no tile yet), replacing it. It can run
+while a download does.
 
 Usage: python scripts/build_ai4g_30s.py [WORKERS]
-       python scripts/build_ai4g_30s.py --mosaic
+       python scripts/build_ai4g_30s.py --mosaic [OUT.tif]
 """
 import json
 import os
@@ -128,8 +129,8 @@ def mosaic(out):
 
 
 def main():
-    if sys.argv[1:] == ["--mosaic"]:
-        out = TEMP / "ai4g_30s.tif"
+    if sys.argv[1:2] == ["--mosaic"]:
+        out = Path(sys.argv[2]) if len(sys.argv) > 2 else TEMP / "ai4g_30s.tif"
         n = mosaic(out)
         print(f"{out}: {n} tiles, {out.stat().st_size / 1e6:.1f} MB")
         return
