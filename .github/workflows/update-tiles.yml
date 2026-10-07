@@ -10,6 +10,8 @@ on:
       - main
     paths:
       - 'update_tiles.py'
+      - 'tiles_listing.py'
+      - 'check_tiles_update.py'
       - 'environment.yml'
       - 'data/watershed_shp/**'
       - 'sub_pages/**'
@@ -49,6 +51,16 @@ jobs:
         run: |
           git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
           git checkout origin/gh-pages -- data/tiles 2>/dev/null || echo "No previous tiles found"
+
+      # Seconds, before the conda setup: stops the run when the MoM server is unreachable or
+      # has no new snapshot (update_tiles.py would end the same way, minutes later)
+      - name: Check for new CSVs
+        env:
+          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
+          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
+          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
+          ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
+        run: python3 check_tiles_update.py
 
       - name: Set up conda environment
         uses: conda-incubator/setup-miniconda@v3
