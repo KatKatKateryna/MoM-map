@@ -1,0 +1,97 @@
+// Flood depth layers share one ramp, so their colors compare directly
+const FLOOD_DEPTH = {
+  // Reds, evenly spaced on the log scale
+  stops: [0.1, '#fcbba1', 0.6, '#fb6a4a', 4, '#cb181d', 25, '#67000d'],
+  scale: 'log',
+  unit: 'm',
+  decimals: 1,
+};
+// Listed bottom layer first (the legend shows the top layer first)
+// The single models, hidden at first, at the bottom and the end of the legend
+EXTRA_SOURCES.push({
+  url: 'data/persistent/aqueduct/aqueduct_riverine_rp1000.pmtiles',
+  name: 'Riverine flood depth, 1-in-1000 years (Aqueduct)',
+  description: 'WRI Aqueduct Floods, historical climate (WATCH 1980), ~1 km.',
+  opacity: 0.75,
+  values: FLOOD_DEPTH,
+  above: true,
+  visible: false,
+});
+EXTRA_SOURCES.push({
+  url: 'data/persistent/aqueduct/aqueduct_coastal_rp1000.pmtiles',
+  name: 'Coastal flood depth, 1-in-1000 years (Aqueduct)',
+  description: 'WRI Aqueduct Floods, historical sea level, ~1 km.',
+  opacity: 0.75,
+  values: FLOOD_DEPTH,
+  above: true,
+  visible: false,
+});
+EXTRA_SOURCES.push({
+  url: 'data/persistent/glofas/glofas_rp500_1km.pmtiles',
+  name: 'River flood depth, 1-in-500 years (GloFAS)',
+  description: 'Copernicus GloFAS flood hazard map, 90 m averaged to ~1 km.',
+  opacity: 0.75,
+  values: FLOOD_DEPTH,
+  above: true,
+  visible: false,
+});
+EXTRA_SOURCES.push({
+  // 30" (~1 km) version of the 250 m source, like the flood layers (scripts/build_river_plains_30s.py)
+  url: 'data/persistent/river_plains/river_plains_30s.pmtiles',
+  name: 'River floodplains',
+  description: 'Global floodplains (GFPLAIN250m, Nardi et al. 2006, 2018), ' +
+    'mapped with a geomorphic approach from the NASA SRTM v4.1 elevation model; 250 m averaged to ~1 km.',
+  opacity: 0.6,
+  // Lifts the tiles' #4a7fb5 to about #f1f5f9, almost white
+  brightnessMin: 0.92,
+  // Sharp ~1 km pixels when zoomed in past the tiles' zoom 7, not blurred
+  resampling: 'nearest',
+  // Drawn over the watershed fill, under the watershed borders
+  above: true,
+  color: '#f1f5f9',
+});
+EXTRA_SOURCES.push({
+  url: 'data/persistent/flood_max/flood_extent_1km.pmtiles',
+  name: 'Flood extent, any model',
+  description: 'Every ~1 km cell flooded in Aqueduct riverine or coastal (1-in-1000 years) ' +
+    'or GloFAS (1-in-500 years).',
+  opacity: 0.75,
+  // A raster of 1s: one color, no slider
+  values: { stops: [1, '#e6550d'], slider: false },
+  above: true,
+  visible: false,
+});
+EXTRA_SOURCES.push({
+  url: 'data/persistent/ai4g/ai4g_flood_1km.pmtiles',
+  name: 'Observed floods, 2014-2024 (AI4G)',
+  description: 'Flooding seen at least once in Sentinel-1 radar images (Microsoft AI for Good, ' +
+    'Nature Communications 2025), 240 m buffer, ~1 km.',
+  opacity: 0.6,
+  // Classes 1 and 2; flooded in a darker orange than the flood extent. Class 1 (not
+  // assessed: rough terrain, arid or urban) is not drawn and left out of the legend
+  values: {
+    stops: [1, 'rgba(0,0,0,0)', 2, '#a63603'],
+    labels: [null, 'Flooded at least once'],
+    slider: false,
+  },
+  above: true,
+});
+EXTRA_SOURCES.push({
+  url: 'data/persistent/population_1km/population_1km.pmtiles',
+  name: 'Population',
+  opacity: 0.75,
+  // Colored at runtime; the legend slider hides cells outside the chosen range
+  values: {
+    stops: [0.1, '#fcbba1', 10, '#fb6a4a', 1000, '#cb181d', 100000, '#67000d'],
+    // Slider and legend bar: power scale (value ~ position^3), quick through the low values
+    scale: 'pow',
+    exponent: 3,
+    min: 1,
+    unit: 'people',
+    // Opens trimmed to 200+ people; the slider's left end shows every populated cell
+    initialMin: 200,
+  },
+  // Last entry: drawn over the natural layers (floodplains, flood depths)
+  above: true,
+  visible: false,
+});
