@@ -30,6 +30,7 @@ for _proj_dir in (
     / "proj_dir"
     / "share"
     / "proj",  # pyproj's copy, fallback
+    Path(sys.prefix) / "share" / "proj",  # a conda env run without `conda activate`
 ):
     if _proj_dir.exists():
         os.environ["PROJ_LIB"] = str(_proj_dir)

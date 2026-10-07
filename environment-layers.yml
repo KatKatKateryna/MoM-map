@@ -1,0 +1,15 @@
+# Env for building data layers locally (scripts/build_*.py) and checking them in a headless
+# browser (scripts/verify_*.py). Separate from environment.yml (myenv), which CI and
+# publishing use. Set up with scripts/setup_layers_env.sh.
+name: mom-layers
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - gdal=3.12.2
+  - numpy=2.4.2
+  - pillow
+  - pip
+  - pip:
+      - pmtiles==3.8.1
+      - playwright==1.63.0

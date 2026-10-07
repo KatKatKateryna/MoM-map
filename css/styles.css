@@ -1,6 +1,6 @@
 :root {
   --header-height: 60px;
-  --panel-width: 300px;
+  --panel-width: min(380px, 35vw);
 
   --surface-1: #fcfcfb;
   --text-primary: #0b0b0b;
@@ -102,6 +102,9 @@ body {
 .legend-toggle input { margin: 0; cursor: pointer; }
 .legend-toggle .swatch { width: 14px; height: 14px; }
 .legend-off .legend-body, .legend-off .legend-toggle .swatch { opacity: .35; }
+.legend-category { cursor: pointer; margin: 6px 0 0; gap: 8px; }
+.legend-category input { margin: 0; cursor: pointer; }
+.legend-category .swatch { width: 24px; height: 12px; border-radius: 3px; }
 .legend-description { font-size: 12px; line-height: 1.4; color: var(--text-muted); margin-top: 6px; }
 .gradient-bar {
   height: 12px; border-radius: 6px;
