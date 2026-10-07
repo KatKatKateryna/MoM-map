@@ -101,17 +101,6 @@ EXTRA_SOURCES.push({
   above: true,
   visible: false,
 });
-EXTRA_SOURCES.push({
-  url: 'data/persistent/flood_max/flood_extent_1km.pmtiles',
-  name: 'Flood extent, any model',
-  description: 'Every ~1 km cell flooded in Aqueduct riverine or coastal (1-in-1000 years) ' +
-    'or GloFAS (1-in-500 years).',
-  opacity: 0.75,
-  // A raster of 1s: one color, no slider
-  values: { stops: [1, '#e6550d'], slider: false },
-  above: true,
-  visible: false,
-});
 */
 EXTRA_SOURCES.push({
   // 30" (~1 km) version of the 250 m source, like the flood layers (scripts/build_river_plains_30s.py)
@@ -181,6 +170,18 @@ EXTRA_SOURCES.push({
     initialMin: 200,
   },
   // Drawn over the natural layers (floodplains, flood depths)
+  above: true,
+  visible: false,
+});
+// Above population, under the observed floods
+EXTRA_SOURCES.push({
+  url: 'data/persistent/flood_max/flood_extent_1km.pmtiles',
+  name: 'Flood extent, any model',
+  description: 'Every ~1 km cell flooded in Aqueduct riverine or coastal (1-in-1000 years) ' +
+    'or GloFAS (1-in-500 years).',
+  opacity: 0.75,
+  // A raster of 1s: one color, no slider
+  values: { stops: [1, '#a63603'], slider: false },
   above: true,
   visible: false,
 });
