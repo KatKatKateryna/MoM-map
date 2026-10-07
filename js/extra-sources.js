@@ -32,6 +32,12 @@
 // color as a swatch (e.g. for a raster of 1s), or with `labels` (one per stop) one legend
 // entry per stop, for classes: values: { stops: [1, '#ccc', 2, '#e6550d'], labels: ['A', 'B'],
 // slider: false }; a null label leaves that class out of the legend.
+// `categories` (value rasters only) makes one layer of several archives that overlap, e.g.
+// crop types: categories: [{ url, label, stops, visible }], used instead of `url`. Each
+// category is its own map layer with its own ramp (`stops`, default values.stops) and a
+// checkbox in the legend (`visible: false` starts it unticked); the layer toggle and the
+// slider apply to all of them. List the most inclusive category first: it is drawn at the
+// bottom and listed last, as the legend lists the top layer first.
 // Layer metadata key holding the EXTRA_SOURCES index, to insert layers in that order
 const EXTRA_ORDER = 'mom:extra-order';
 const GRADIENT_RAMP = ['#ffffcc', '#fd8d3c', '#bd0026'];
@@ -146,7 +152,7 @@ const BAR_SAMPLES = 48;
 
 // Legend body of a value raster: the ramp with two trim handles on it; the trimmed-off
 // ends of the ramp are greyed out
-function valuesLegend(c, layerIds, esc) {
+function valuesLegend(c, layerIds, esc, ramps = []) {
   // The bar is sampled with the map's own coloring (interpolated on stored values), so
   // each point of it has exactly the color of the cells at the value under it
   const stored = c.stops.map((x, k) => k % 2 ? x : c.toStored(x));
@@ -185,8 +191,9 @@ function valuesLegend(c, layerIds, esc) {
     loLabel.innerHTML = `${+loInput.value === 0 ? '' : '≥ '}${fmtValue(lo, c.decimals)}${unit}`;
     hiLabel.innerHTML = `${+hiInput.value === 1000 ? '' : '≤ '}${fmtValue(hi, c.decimals)}${+hiInput.value === 1000 ? '+' : ''}${unit}`;
     // The top of the slider shows everything above it too
-    const color = reliefColor(c, lo, +hiInput.value === 1000 ? 1e9 : hi);
-    for (const layerId of layerIds) map.setPaintProperty(layerId, 'color-relief-color', color);
+    const top = +hiInput.value === 1000 ? 1e9 : hi;
+    layerIds.forEach((layerId, k) =>
+      map.setPaintProperty(layerId, 'color-relief-color', reliefColor(ramps[k] ?? c, lo, top)));
   };
   loInput.addEventListener('input', update);
   hiInput.addEventListener('input', update);
@@ -194,7 +201,7 @@ function valuesLegend(c, layerIds, esc) {
   return body;
 }
 
-function renderExtraLegend(section, title, c, layerIds, description, visible) {
+function renderExtraLegend(section, title, c, layerIds, description, visible, categories) {
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const fmt = v => v.toLocaleString(undefined, { maximumFractionDigits: 2 });
   const leg = (color, label) => `<div class="leg"><div class="swatch" style="background:${color}"></div>${esc(label)}</div>`;
@@ -221,10 +228,26 @@ function renderExtraLegend(section, title, c, layerIds, description, visible) {
     </label>
     ${description ? `<p class="legend-description">${esc(description)}</p>` : ''}
     <div class="legend-body">${body}</div>`;
-  if (c.kind === 'values') section.querySelector('.legend-body').appendChild(valuesLegend(c, layerIds, esc));
-  section.querySelector('input').addEventListener('change', e => {
-    const visibility = e.target.checked ? 'visible' : 'none';
-    for (const layerId of layerIds) map.setLayoutProperty(layerId, 'visibility', visibility);
+  // Category layers show when both the layer toggle and their own checkbox are on
+  const shown = layerIds.map((_, k) => categories?.[k].visible ?? true);
+  const legendBody = section.querySelector('.legend-body');
+  if (c.kind === 'values') legendBody.appendChild(valuesLegend(c, layerIds, esc, categories?.map(cat => cat.ramp)));
+  const master = section.querySelector('input');
+  const apply = () => layerIds.forEach((layerId, k) =>
+    map.setLayoutProperty(layerId, 'visibility', master.checked && shown[k] ? 'visible' : 'none'));
+  // Top layer first, like the legend itself: the first (bottom) category goes last
+  [...(categories ?? []).entries()].reverse().forEach(([k, cat]) => {
+    // The swatch runs over the category's own ramp
+    const stops = cat.ramp.stops, colors = stops.filter((_, n) => n % 2);
+    const row = document.createElement('label');
+    row.className = 'leg legend-category';
+    row.innerHTML = `<input type="checkbox"${shown[k] ? ' checked' : ''}>
+      <span class="swatch" style="background:linear-gradient(to right, ${colors.join(', ')})"></span>${esc(cat.label)}`;
+    row.querySelector('input').addEventListener('change', e => { shown[k] = e.target.checked; apply(); });
+    legendBody.appendChild(row);
+  });
+  master.addEventListener('change', e => {
+    apply();
     section.classList.toggle('legend-off', !e.target.checked);
   });
   section.classList.toggle('legend-off', !visible);
@@ -232,9 +255,9 @@ function renderExtraLegend(section, title, c, layerIds, description, visible) {
 }
 
 async function addExtraSource(entry, i, section) {
-  const { url, name, description, opacity = 0.7, color: colorSpec = '#4a7fb5', brightness, brightnessMin, resampling, above = false, visible = true, values } = typeof entry === 'string' ? { url: entry } : entry;
-  // Several archives (e.g. a raster split by region) share one legend and toggle
-  const urls = [].concat(url);
+  const { url, name, description, opacity = 0.7, color: colorSpec = '#4a7fb5', brightness, brightnessMin, resampling, above = false, visible = true, values, categories } = typeof entry === 'string' ? { url: entry } : entry;
+  // Several archives (e.g. a raster split by region, or the categories) share one legend and toggle
+  const urls = categories ? categories.map(cat => cat.url) : [].concat(url);
   const archives = urls.map(u => new pmtiles.PMTiles(u));
   archives.forEach(a => protocol.add(a));
   const headers = await Promise.all(archives.map(a => a.getHeader()));
@@ -255,6 +278,8 @@ async function addExtraSource(entry, i, section) {
   const layerIds = [];
   let legendColor;
   const valueRamp = values && resolveValues(values, metadatas[0].value_scale);
+  const cats = categories?.map((cat, k) => ({ ...cat,
+    ramp: resolveValues({ ...values, stops: cat.stops ?? values.stops }, metadatas[k].value_scale) }));
 
   urls.forEach((url, k) => {
     const header = headers[k], metadata = metadatas[k];
@@ -285,10 +310,12 @@ async function addExtraSource(entry, i, section) {
     } else if (valueRamp) {
       // Values as terrain-RGB, colored (and filtered by the legend slider) at runtime
       map.addSource(id, { type: 'raster-dem', url: `pmtiles://${url}`, tileSize: 256, encoding: metadata.encoding ?? 'terrarium' });
-      map.addLayer({ id, type: 'color-relief', source: id, ...tag,
+      const ramp = cats?.[k].ramp ?? valueRamp;
+      const layout = { visibility: visible && (cats?.[k].visible ?? true) ? 'visible' : 'none' };
+      map.addLayer({ id, type: 'color-relief', source: id, ...tag, layout,
         // nearest: color each data pixel as is; linear blends neighbours (also with
         // empty cells), which turns filtered pixels into blobs and stripes
-        paint: { 'color-relief-color': reliefColor(valueRamp, valueRamp.min, 1e9), 'color-relief-opacity': opacity,
+        paint: { 'color-relief-color': reliefColor(ramp, ramp.min, 1e9), 'color-relief-opacity': opacity,
           resampling: 'nearest' } }, beforeId);
       layerIds.push(id);
       legendColor = values.slider !== false ? valueRamp
@@ -308,7 +335,7 @@ async function addExtraSource(entry, i, section) {
     }
   });
 
-  renderExtraLegend(section, title, legendColor ?? resolveColor(colorSpec), layerIds, description, visible);
+  renderExtraLegend(section, title, legendColor ?? resolveColor(colorSpec), layerIds, description, visible, cats);
 }
 
 // Legend sections are created up front, top layer (last entry) first, so they keep

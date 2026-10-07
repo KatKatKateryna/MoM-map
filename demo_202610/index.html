@@ -144,6 +144,43 @@ EXTRA_SOURCES.push({
   above: true,
   visible: false,
 });
+// Agriculture, under Population. One layer per WorldCereal product, each its own dark
+// green (scripts/build_worldcereal_30s.py). Labels are the dataset's product names
+// (<season>_<product>); products joined with + are combined (larger share per cell)
+const WORLDCEREAL = 'data/persistent/worldcereal/worldcereal_';
+EXTRA_SOURCES.push({
+  name: 'Agriculture (WorldCereal 2021)',
+  description: 'Share of each ~1 km cell in each class, from the 10 m ESA WorldCereal 2021 ' +
+    '(no orchards, plantations or pasture).',
+  categories: [
+    { url: WORLDCEREAL + 'temporarycrops_30s.pmtiles', label: 'tc-annual_temporarycrops',
+      stops: [1, '#74a35f', 30, '#2f6b33', 100, '#0b3d1a'] },
+    { url: WORLDCEREAL + 'activecropland_30s.pmtiles',
+      label: 'tc-wintercereals_activecropland + tc-maize-main_activecropland + tc-maize-second_activecropland',
+      stops: [1, '#7f9f7a', 30, '#3d5f3a', 100, '#16301a'], visible: false },
+    { url: WORLDCEREAL + 'wintercereals_30s.pmtiles', label: 'tc-wintercereals_wintercereals',
+      stops: [1, '#6aa58a', 30, '#2c6b52', 100, '#0f3b2c'], visible: false },
+    { url: WORLDCEREAL + 'springcereals_30s.pmtiles', label: 'tc-springcereals_springcereals',
+      stops: [1, '#8fae6a', 30, '#4d7232', 100, '#24420f'], visible: false },
+    { url: WORLDCEREAL + 'maize_30s.pmtiles', label: 'tc-maize-main_maize + tc-maize-second_maize',
+      stops: [1, '#9aa65a', 30, '#5b6a24', 100, '#2f3a0b'], visible: false },
+    { url: WORLDCEREAL + 'irrigation_30s.pmtiles',
+      label: 'tc-wintercereals_irrigation + tc-maize-main_irrigation + tc-maize-second_irrigation',
+      stops: [1, '#5c9f95', 30, '#22675f', 100, '#073a35'], visible: false },
+  ],
+  opacity: 0.8,
+  // Share of the cell, %; one slider trims every category to the same range
+  values: {
+    stops: [1, '#74a35f', 30, '#2f6b33', 100, '#0b3d1a'],
+    min: 1,
+    max: 100,
+    unit: '%',
+    // Opens hiding cells with under 20%, the left end shows them all
+    initialMin: 20,
+  },
+  above: true,
+  visible: false,
+});
 EXTRA_SOURCES.push({
   url: 'data/persistent/population_1km/population_1km.pmtiles',
   name: 'Population',
