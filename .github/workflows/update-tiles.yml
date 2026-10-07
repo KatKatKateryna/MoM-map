@@ -47,20 +47,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore previous snapshots from gh-pages
-        run: |
-          git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
-          git checkout origin/gh-pages -- data/tiles 2>/dev/null || echo "No previous tiles found"
-
-      # Seconds, before the conda setup: stops the run when the MoM server is unreachable or
-      # has no new snapshot (update_tiles.py would end the same way, minutes later)
+      # First, in seconds: stops the run when the MoM server is unreachable or has no new
+      # snapshot (update_tiles.py would end the same way, minutes later). Compares with the
+      # deployed tiles, so the slow restore below only runs when there is work
       - name: Check for new CSVs
         env:
           MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
           RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
           OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
           ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
+          TILES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/tiles/
         run: python3 check_tiles_update.py
+
+      - name: Restore previous snapshots from gh-pages
+        run: |
+          git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
+          git checkout origin/gh-pages -- data/tiles 2>/dev/null || echo "No previous tiles found"
 
       - name: Set up conda environment
         uses: conda-incubator/setup-miniconda@v3

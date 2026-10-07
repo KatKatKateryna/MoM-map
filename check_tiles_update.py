@@ -3,10 +3,12 @@
 Quick check, before the slow environment setup in CI, that update_tiles.py has work to do.
 
 Lists the CSVs on the MoM output server (MOM_CSV_URL) and compares the newest window
-(same settings as update_tiles.py, from tiles_listing.py) with the snapshots already in
-data/tiles/metadata.json. Exits 1 within seconds when the server cannot be reached, lists
-no CSV, or there is no new snapshot to make (update_tiles.py would end the same way, after
-minutes of setup); 0 when there is work, or with OVERWRITE_EXISTING (a full rebuild).
+(same settings as update_tiles.py, from tiles_listing.py) with the snapshots already made:
+those in data/tiles/metadata.json, or with TILES_URL (the deployed data/tiles/ folder, so
+CI need not restore it first) those in its metadata.json whose file is there. Exits 1
+within seconds when the server cannot be reached, lists no CSV, or there is no new
+snapshot to make (update_tiles.py would end the same way, after minutes of setup); 0 when
+there is work, or with OVERWRITE_EXISTING (a full rebuild).
 Standard library only.
 
 Usage:
@@ -46,6 +48,28 @@ def fetch_listing(url):
     return None
 
 
+def deployed_snapshots(base, wanted):
+    """Snapshots of the CSVs in wanted in the deployed metadata.json whose tile file is there too."""
+    base = base.rstrip("/") + "/"
+    try:
+        with urllib.request.urlopen(base + "metadata.json", timeout=TIMEOUT) as r:
+            snapshots = json.loads(r.read()).get("snapshots", [])
+    except Exception as e:
+        print(f"  no deployed metadata.json ({e}): every snapshot counts as new")
+        return []
+    kept = []
+    for s in snapshots:
+        if s.get("csv") not in wanted:
+            continue
+        try:
+            req = urllib.request.Request(base + s.get("file", ""), method="HEAD")
+            urllib.request.urlopen(req, timeout=TIMEOUT).close()
+            kept.append(s)
+        except Exception:
+            print(f"  {s.get('file')} listed but missing: counts as new")
+    return kept
+
+
 def main():
     url = os.getenv("MOM_CSV_URL")
     if not url:
@@ -68,11 +92,14 @@ def main():
     window = names[:EFFECTIVE_MAX_SNAPSHOTS]
 
     # Same rule as update_tiles.py: a snapshot counts only if its tile file exists
-    try:
-        snapshots = json.loads((OUT_DIR / "metadata.json").read_text()).get("snapshots", [])
-    except (OSError, ValueError):
-        snapshots = []
-    have = {s["csv"] for s in snapshots if s.get("csv") and (OUT_DIR / s.get("file", "")).exists()}
+    if os.getenv("TILES_URL"):
+        have = {s["csv"] for s in deployed_snapshots(os.environ["TILES_URL"], set(window)) if s.get("csv")}
+    else:
+        try:
+            snapshots = json.loads((OUT_DIR / "metadata.json").read_text()).get("snapshots", [])
+        except (OSError, ValueError):
+            snapshots = []
+        have = {s["csv"] for s in snapshots if s.get("csv") and (OUT_DIR / s.get("file", "")).exists()}
     missing = [n for n in window if n not in have]
     if not missing:
         print(f"No update (latest: {names[0]}); nothing to do.")
