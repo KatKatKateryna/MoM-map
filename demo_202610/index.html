@@ -128,22 +128,6 @@ EXTRA_SOURCES.push({
   above: true,
   color: '#f1f5f9',
 });
-EXTRA_SOURCES.push({
-  url: 'data/persistent/ai4g/ai4g_flood_1km.pmtiles',
-  name: 'Observed floods, 2014-2024 (AI4G)',
-  description: 'Flooding seen at least once in Sentinel-1 radar images (Microsoft AI for Good, ' +
-    'Nature Communications 2025), 240 m buffer, ~1 km.',
-  opacity: 0.6,
-  // Classes 1 and 2; flooded in a darker orange than the flood extent. Class 1 (not
-  // assessed: rough terrain, arid or urban) is not drawn and left out of the legend
-  values: {
-    stops: [1, 'rgba(0,0,0,0)', 2, '#cc4c02'],
-    labels: [null, 'Flooded at least once'],
-    slider: false,
-  },
-  above: true,
-  visible: false,
-});
 // Agriculture, under Population. One layer per WorldCereal product, each its own dark
 // green (scripts/build_worldcereal_30s.py). Labels are the dataset's product names
 // (<season>_<product>); products joined with + are combined (larger share per cell)
@@ -196,7 +180,24 @@ EXTRA_SOURCES.push({
     // Opens trimmed to 200+ people; the slider's left end shows every populated cell
     initialMin: 200,
   },
-  // Last entry: drawn over the natural layers (floodplains, flood depths)
+  // Drawn over the natural layers (floodplains, flood depths)
+  above: true,
+  visible: false,
+});
+// Last entry: observed floods on top of everything, population included
+EXTRA_SOURCES.push({
+  url: 'data/persistent/ai4g/ai4g_flood_1km.pmtiles',
+  name: 'Observed floods, 2014-2024 (AI4G)',
+  description: 'Flooding seen at least once in Sentinel-1 radar images (Microsoft AI for Good, ' +
+    'Nature Communications 2025), 240 m buffer, ~1 km.',
+  opacity: 0.8,
+  // Classes 1 and 2; flooded in a brighter orange than the flood extent. Class 1 (not
+  // assessed: rough terrain, arid or urban) is not drawn and left out of the legend
+  values: {
+    stops: [1, 'rgba(0,0,0,0)', 2, '#f16913'],
+    labels: [null, 'Flooded at least once'],
+    slider: false,
+  },
   above: true,
   visible: false,
 });
