@@ -70,11 +70,12 @@ EXTRA_SOURCES.push({
   // Classes 1 and 2; flooded in a darker orange than the flood extent. Class 1 (not
   // assessed: rough terrain, arid or urban) is not drawn and left out of the legend
   values: {
-    stops: [1, 'rgba(0,0,0,0)', 2, '#a63603'],
+    stops: [1, 'rgba(0,0,0,0)', 2, '#cc4c02'],
     labels: [null, 'Flooded at least once'],
     slider: false,
   },
   above: true,
+  visible: false,
 });
 EXTRA_SOURCES.push({
   url: 'data/persistent/population_1km/population_1km.pmtiles',

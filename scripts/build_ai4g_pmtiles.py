@@ -7,9 +7,12 @@ when zooming out, so classes never blend: a pixel with any flooding stays 2. Use
 tiles exist in data/temp/ai4g_30s/, so it can run while that is still downloading:
 re-run it afterwards for the full set. Output: data/persistent/ai4g/ai4g_flood_1km.pmtiles.
 
-Usage: python scripts/build_ai4g_pmtiles.py
+SRC.tif, e.g. a mosaic from build_ai4g_30s.py --mosaic, is used instead of the tiles.
+
+Usage: python scripts/build_ai4g_pmtiles.py [SRC.tif]
 """
 import shutil
+import sys
 
 import numpy as np
 
@@ -21,9 +24,9 @@ NAME = "ai4g_flood_1km"
 TITLE = "Sentinel-1 flood observations 2014-2024 (AI4G): 2 flooded, 1 exclusion mask"
 
 
-def flood_raster(out):
+def flood_raster(out, src=None):
     """Global 30" Float32: the 1 and 2 classes, nodata elsewhere."""
-    tiles = sorted(str(p) for p in TILES.glob("*.tif"))
+    tiles = [str(src)] if src else sorted(str(p) for p in TILES.glob("*.tif"))
     vrt = gdal.BuildVRT("", tiles, outputBounds=(-180, -90, 180, 90), srcNodata=255, VRTNodata=255)
     dst = gdal.GetDriverByName("GTiff").Create(
         str(out), vrt.RasterXSize, vrt.RasterYSize, 1, gdal.GDT_Float32, bfp.CREATE)
@@ -45,8 +48,8 @@ def flood_raster(out):
 def main():
     bfp.WORK.mkdir(parents=True, exist_ok=True)
     src = bfp.WORK / f"{NAME}_4326.tif"
-    n, flooded = flood_raster(src)
-    print(f"{n} tiles, {flooded:,} flooded 30\" cells", flush=True)
+    n, flooded = flood_raster(src, sys.argv[1] if len(sys.argv) > 1 else None)
+    print(f"{n} source file(s), {flooded:,} flooded 30\" cells", flush=True)
     bfp.build_layer(src, "ai4g", NAME, TITLE, resample="max")
     shutil.rmtree(bfp.WORK)
 

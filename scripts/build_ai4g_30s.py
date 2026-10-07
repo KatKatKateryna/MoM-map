@@ -9,7 +9,11 @@ skipped, so re-running resumes. Some files are empty (0 bytes) on the server: th
 a .empty marker instead and count as no tile. data/temp/ai4g_30s.vrt mosaics the tiles
 (255 = no tile).
 
+--mosaic downloads nothing: it writes the tiles done so far into one global 30" GeoTIFF,
+data/temp/ai4g_30s.tif (0, 1, 2; 255 = no tile yet). It can run while a download does.
+
 Usage: python scripts/build_ai4g_30s.py [WORKERS]
+       python scripts/build_ai4g_30s.py --mosaic
 """
 import json
 import os
@@ -109,7 +113,26 @@ def reduce_tile(path, retries=5):
     return path, f"ok ({size / 1e6:.1f} MB, {int((reduced == 2).sum())} flooded cells)"
 
 
+def mosaic(out):
+    """One global 30" GeoTIFF of the reduced tiles done so far."""
+    tiles = sorted(str(p) for p in OUT_DIR.glob("*.tif"))
+    vrt = gdal.BuildVRT("", tiles, outputBounds=(-180, -90, 180, 90),
+                        srcNodata=NODATA, VRTNodata=NODATA)
+    tmp = out.with_name(out.name + ".part")
+    gdal.Translate(str(tmp), vrt, format="GTiff", noData=NODATA,
+                   creationOptions=["TILED=YES", "COMPRESS=DEFLATE", "PREDICTOR=2",
+                                    "BIGTIFF=YES", "SPARSE_OK=TRUE"])
+    vrt = None
+    tmp.replace(out)
+    return len(tiles)
+
+
 def main():
+    if sys.argv[1:] == ["--mosaic"]:
+        out = TEMP / "ai4g_30s.tif"
+        n = mosaic(out)
+        print(f"{out}: {n} tiles, {out.stat().st_size / 1e6:.1f} MB")
+        return
     workers = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     paths = list_tiles()
