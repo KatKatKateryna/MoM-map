@@ -82,17 +82,21 @@ function colorExpr(c) {
 
 // ── Value rasters ─────────────────────────────────────────────────────────────
 // valueScale (archive metadata `value_scale`) maps a value to what the tiles store:
-// for 'log' the index of the value on a log scale (scripts/build_value_pmtiles.py)
+// for 'log' the index of the value on a log scale (scripts/build_value_pmtiles.py); for
+// 'linear' the value itself, with 0 and negative values as data and `nodata` for none
 function resolveValues(values, valueScale) {
   const { stops, scale = 'linear', exponent = 3, unit = '', initialMin, initialMax, decimals = 0 } = values;
   const log = valueScale?.type === 'log';
+  const signed = valueScale?.type === 'linear' && valueScale.nodata != null;
   const toStored = log
     ? v => Math.log(v) / Math.log(valueScale.ratio) + valueScale.offset
     : v => v;
-  return { kind: 'values', stops, scale, exponent, unit, toStored, initialMin, initialMax, decimals,
-    // Lowest stored value that is data: tiles store 0 for no data
-    lowestStored: log ? 0.5 : Number.MIN_VALUE,
-    min: values.min ?? stops[0], max: values.max ?? stops[stops.length - 2] };
+  return { kind: 'values', stops, scale, exponent, unit, toStored, initialMin, initialMax, decimals, signed,
+    // Lowest stored value that is data: tiles store 0 for no data, or `nodata` if signed
+    lowestStored: log ? 0.5 : signed ? valueScale.nodata + 0.5 : Number.MIN_VALUE,
+    // Display range: the layer's min/max if set, else the archive's value range (ignoring
+    // nodata, for linear archives that record it), else the outer stops
+    min: values.min ?? valueScale?.min ?? stops[0], max: values.max ?? valueScale?.max ?? stops[stops.length - 2] };
 }
 
 // Position (0..1) of a value along the legend bar / slider, and back
@@ -121,11 +125,12 @@ function rampColor(stops, v) {
 }
 
 // color-relief color: the ramp between values lo and hi, transparent outside it
-// (lo 0 shows every cell with data). Works on stored values (['elevation'] of the
-// tiles), so stops and bounds are converted
+// (lo 0 shows every cell with data, unless the scale is signed: then lo is used as is).
+// Works on stored values (['elevation'] of the tiles), so stops and bounds are converted
 function reliefColor(c, lo, hi) {
   const stops = c.stops.map((x, k) => k % 2 ? x : c.toStored(x));
-  const sLo = lo > 0 ? c.toStored(lo) : c.lowestStored, sHi = c.toStored(hi);
+  const sLo = lo > 0 || c.signed ? Math.max(c.toStored(lo), c.lowestStored) : c.lowestStored;
+  const sHi = c.toStored(hi);
   // MapLibre stores stop positions at 1/256 precision: keep the edge stops apart
   const eps = 1 / 32;
   const inner = [];

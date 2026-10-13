@@ -4,8 +4,8 @@ WorldCereal 2021 v100, (c) ESA WorldCereal Consortium, CC BY 4.0 (https://zenodo
 Each product is a zip of ~106 GeoTIFFs, one per agro-ecological zone (AEZ), at 0.3" in
 EPSG:4326. Values: 100 = the class (crop, irrigated, ...), 0 = not the class, 254 = not
 cropland (crop type and irrigation products), 255 = no data. The zips (7-20 GB each) are
-never downloaded whole: each GeoTIFF is fetched alone (scripts/remote_zip.py), counted and
-deleted.
+never downloaded whole: each GeoTIFF is fetched alone (scripts/remote_zip.py) and kept in
+data/temp/worldcereal/downloads/ until worldcereal_pipeline.sh has built and verified the tiles.
 
 Stages (each resumes where it stopped, so re-running is safe):
 
@@ -15,18 +15,19 @@ Stages (each resumes where it stopped, so re-running is safe):
            (pixels are 1/100 of a cell). Full resolution: the files' overviews are mode
            resampled and undercount small fields (-1% at 2x, -9% at 8x). Output:
            data/temp/worldcereal/counts/<product>/<aez>.npz
-  mosaic   per category, the share (%) of each cell's valid area in the class, summing the
-           counts of overlapping AEZs. Categories with two seasons or products (maize main
-           and second season; irrigation and active cropland in the winter cereals and
-           both maize seasons) take the
-           larger share of the two; active irrigation and active cropland, of the winter
-           cereals and both maize seasons). Cells with valid data but no class hold 0, so lower zooms
-           average the share over all land. Output: data/temp/worldcereal/<category>_30s.tif
+  mosaic   per category, the share (%) of each 30" cell's valid area in the class, summing
+           the counts of overlapping AEZs. Categories of several products (maize main and
+           second season; active irrigation and active cropland in the winter cereals and
+           both maize seasons) take the largest share. Cells with valid data but no class
+           hold 0, so lower zooms average the share over all land.
+           Output: data/temp/worldcereal/<category>_30s.tif
   tiles    value PMTiles (build_value_pmtiles.py) up to zoom 7 like population_1km:
            data/persistent/worldcereal/worldcereal_<category>_30s.pmtiles
 
-Everything under data/temp/worldcereal/ is kept for later use (the counts, the 30" rasters
-and their Web Mercator copies, <category>_3857.tif); only the 10 m downloads are deleted.
+Kept in data/temp/worldcereal/ for later use: the 30" counts and the 30" rasters.
+The 10 m downloads are deleted by worldcereal_pipeline.sh once the tiles are verified
+(a counts run from scratch, ~156 GB, does not fit on this disk: the download disk check
+fails files when it is full), and the Web Mercator intermediates once tiled.
 
 Usage: python scripts/build_worldcereal_30s.py [counts [WORKERS]] [mosaic] [tiles] [CATEGORY ...]
            [--aez ID,ID] [--partial]                                               (default: all)
@@ -35,7 +36,7 @@ Usage: python scripts/build_worldcereal_30s.py [counts [WORKERS]] [mosaic] [tile
   --window LON0,LAT0,LON1,LAT1
              a quick sample: counts, mosaics and tiles only this box, all in
              data/temp/worldcereal_sample/ (never mixed with the full counts); the PMTiles
-             still go to data/persistent/worldcereal/, until the full run replaces them
+             go to data/persistent/worldcereal/ as worldcereal_<category>_30s_sample.pmtiles
 """
 import json
 import os
@@ -43,7 +44,8 @@ import shutil
 import sys
 import time
 import traceback
-from multiprocessing import Pool
+import multiprocessing
+from multiprocessing.connection import wait
 from pathlib import Path
 
 import numpy as np
@@ -71,6 +73,14 @@ NODATA = -9999.0
 MAXZOOM = 7
 # Cells need this many valid 10 m pixels (1% of a full cell) to get a share
 MIN_VALID = 100
+# The counts stage does not start with less free disk than this
+MIN_FREE_DISK_START = 3e9
+# Each download needs its own size free plus this, else that file fails without downloading
+# (other processes on the disk keep some room, even with downloads in flight)
+DOWNLOAD_DISK_RESERVE = 1e9
+# Pixels per read when counting: whole 1024 x 1024 blocks, so each is decompressed once,
+# in pieces small enough for the widest AEZs (1.4M pixels) on this 4 GB machine
+READ_CHUNK_PIXELS = 1 << 24
 CREATE = ["TILED=YES", "COMPRESS=DEFLATE", "PREDICTOR=3", "BIGTIFF=YES", "SPARSE_OK=TRUE"]
 
 # Category -> (products, title), in the dataset's own names. Products of several seasons
@@ -109,7 +119,8 @@ def members(product):
 
 
 def count_cells(path):
-    """Class (100) and valid (not 255) pixel counts per 30" cell of one AEZ file."""
+    """Class (100) and valid (not 255) pixel counts per 30" cell of one AEZ file; with
+    --window, only the window."""
     ds = gdal.Open(str(path))
     band = ds.GetRasterBand(1)
     w, h = ds.RasterXSize, ds.RasterYSize
@@ -126,24 +137,47 @@ def count_cells(path):
             return None
         c0, c1, r0_, r1_ = cs[0], cs[-1] + 1, rs[0], rs[-1] + 1
         ox, oy = ox[c0:c1], oy[r0_:r1_]
-    col_starts = np.r_[0, np.flatnonzero(np.diff(ox)) + 1]
-    row_starts = np.r_[0, np.flatnonzero(np.diff(oy)) + 1, len(oy)]
-    crop = np.zeros((len(row_starts) - 1, len(col_starts)), np.uint32)
+    oy0, ox0 = int(oy[0]), int(ox[0])
+    dtype = np.uint16  # a cell holds at most 101^2 pixels
+    crop = np.zeros((int(oy[-1]) - oy0 + 1, int(ox[-1]) - ox0 + 1), dtype)
     valid = np.zeros_like(crop)
-    for i, (r0, r1) in enumerate(zip(row_starts[:-1], row_starts[1:])):
-        a = band.ReadAsArray(int(c0), int(r0_ + r0), int(c1 - c0), int(r1 - r0))
-        v = np.count_nonzero(a != 255, axis=0)
-        if not v.any():
-            continue
-        valid[i] = np.add.reduceat(v, col_starts)
-        crop[i] = np.add.reduceat(np.count_nonzero(a == 100, axis=0), col_starts)
-    return int(oy[0]), int(ox[0]), crop, valid
+    # Whole blocks, a row of blocks at a time in column chunks: strips of one cell row
+    # decompress every block once per strip, and a full row of blocks of the widest AEZs
+    # takes 1.4 GB. Cells cut by a chunk edge get the counts of both chunks
+    bw, bh = band.GetBlockSize()
+    cw = max(bw, READ_CHUNK_PIXELS // bh // bw * bw)
+    for by in range(r0_ - r0_ % bh, r1_, bh):
+        ra, rb = max(by, r0_), min(by + bh, r1_)
+        rows = oy[ra - r0_:rb - r0_] - oy0
+        row_starts = np.r_[0, np.flatnonzero(np.diff(rows)) + 1, len(rows)]
+        for bx in range(c0 - c0 % bw, c1, cw):
+            ca, cb = max(bx, c0), min(bx + cw, c1)
+            a = band.ReadAsArray(int(ca), int(ra), int(cb - ca), int(rb - ra))
+            if (a == 255).all():  # most of a big AEZ's bounding box
+                continue
+            cols = ox[ca - c0:cb - c0] - ox0
+            col_starts = np.r_[0, np.flatnonzero(np.diff(cols)) + 1]
+            cells = np.s_[cols[0]:cols[-1] + 1]
+            # Per cell row, as count_nonzero over axis 0 is many times faster than reduceat
+            for r0, r1 in zip(row_starts[:-1], row_starts[1:]):
+                s = a[r0:r1]
+                v = np.count_nonzero(s != 255, axis=0)
+                if not v.any():
+                    continue
+                valid[rows[r0], cells] += np.add.reduceat(v, col_starts).astype(dtype)
+                crop[rows[r0], cells] += np.add.reduceat(np.count_nonzero(s == 100, axis=0),
+                                                         col_starts).astype(dtype)
+    return oy0, ox0, crop, valid
+
+
+def job_done(product, aez):
+    return (COUNTS / product / f"{aez}.npz").exists()
 
 
 def count_job(job):
     product, aez, name, info = job
     out = COUNTS / product / f"{aez}.npz"
-    if out.exists():
+    if job_done(product, aez):
         return job, "skipped"
     url = ZIP_URL.format(product)
     tif = DOWNLOADS / f"{product}_{aez}.tif"
@@ -151,10 +185,15 @@ def count_job(job):
         t = time.time()
         # A complete file left by a stopped run is used as is
         if not (tif.exists() and tif.stat().st_size == info[2]):
+            tif.unlink(missing_ok=True)
+            free = shutil.disk_usage(DOWNLOADS).free
+            if free < info[2] + DOWNLOAD_DISK_RESERVE:
+                return job, (f"FAILED: not enough disk for the download ({info[2] / 1e9:.2f} GB"
+                             f" + {DOWNLOAD_DISK_RESERVE / 1e9:.0f} GB reserve, {free / 1e9:.2f} GB free)")
             remote_zip.fetch_member(url, info, tif)
         t_dl = time.time() - t
         counted = count_cells(tif)
-        if counted is None:
+        if counted is None:  # --window: the file is outside the sample box
             np.savez_compressed(out, empty=True)
             return job, "outside the window"
         oy0, ox0, crop, valid = counted
@@ -166,8 +205,12 @@ def count_job(job):
                      f"{share:.2f}% class)")
     except Exception as e:
         return job, f"FAILED: {e!r}\n{traceback.format_exc()}"
-    finally:
-        tif.unlink(missing_ok=True)
+
+
+def count_job_to(job, send):
+    """count_job in a worker process, its status sent back through the pipe."""
+    send.send(count_job(job)[1])
+    send.close()
 
 
 def stage_counts(workers, aez_ids=None):
@@ -177,22 +220,50 @@ def stage_counts(workers, aez_ids=None):
         (COUNTS / product).mkdir(parents=True, exist_ok=True)
         ms = members(product)
         todo = [(product, aez, name, info) for aez, (name, info) in ms.items()
-                if not (COUNTS / product / f"{aez}.npz").exists() and (not aez_ids or aez in aez_ids)]
+                if not job_done(product, aez) and (not aez_ids or aez in aez_ids)]
         log(f"{product}: {len(ms)} AEZ files, {len(todo)} to do, "
             f"{sum(j[3][1] for j in todo) / 1e9:.1f} GB to download")
         jobs += todo
+    free = shutil.disk_usage(DOWNLOADS).free
+    if jobs and free < MIN_FREE_DISK_START:
+        raise SystemExit(f"only {free / 1e9:.2f} GB free on disk, the counts stage needs at least "
+                         f"{MIN_FREE_DISK_START / 1e9:.0f} GB to start")
     gdal.SetConfigOption("GDAL_CACHEMAX", "256")
-    failed = 0
-    with Pool(workers, maxtasksperchild=1) as pool:
-        for i, (job, status) in enumerate(pool.imap_unordered(count_job, jobs), 1):
+    # One process per file (frees its memory), up to `workers` at once. Not a Pool: a
+    # worker killed by the kernel (out of memory) loses its result there, and the run waits
+    # for it forever; here its pipe closes and the file counts as failed
+    ctx = multiprocessing.get_context("fork")  # the workers keep main()'s globals
+    running = {}  # result pipe -> (job, process)
+    failed = i = 0
+    total = len(jobs)
+    while jobs or running:
+        while jobs and len(running) < workers:
+            job = jobs.pop(0)
+            recv, send = ctx.Pipe(duplex=False)
+            p = ctx.Process(target=count_job_to, args=(job, send), daemon=True)
+            p.start()
+            send.close()
+            running[recv] = (job, p)
+        for recv in wait(list(running)):
+            job, p = running.pop(recv)
+            try:
+                status = recv.recv()
+            except EOFError:
+                status = None
+            recv.close()
+            p.join()
+            if status is None:  # its download, if complete, is reused by the next run
+                status =f"FAILED: worker died (exit code {p.exitcode}" + \
+                         (", killed: out of memory?)" if p.exitcode == -9 else ")")
+            i += 1
             failed += status.startswith("FAILED")
-            log(f"[{i}/{len(jobs)}] {job[0]} {job[1]}: {status}")
+            log(f"[{i}/{total}] {job[0]} {job[1]}: {status}")
     if failed:
         raise SystemExit(f"{failed} AEZ files failed; re-run to retry them")
 
 
 def stage_mosaic(categories, partial=False):
-    band_rows = 1080  # 9 degrees of latitude per pass
+    band_rows = 540  # 4.5 degrees of latitude per pass (~1 GB of arrays at most)
     for cat in categories:
         products, title = CATEGORIES[cat]
         tiles = {p: [np.load(f) for f in sorted((COUNTS / p).glob("*.npz"))
@@ -259,12 +330,12 @@ def stage_tiles(categories):
     for cat in categories:
         title = CATEGORIES[cat][1]
         src = TEMP / f"{cat}_30s.tif"
-        merc = TEMP / f"{cat}_3857.tif"
+        merc = work / f"{cat}_3857.tif"
         log(f"{cat}: Web Mercator")
         # Zoom 8 pixel size, then build() averages the shares (zeros included) per zoom
         # Only the data's extent (plus a cell), not the whole world
         extent = json.loads((TEMP / f"{cat}_30s.json").read_text())["extent"]
-        out = OUT_DIR / f"worldcereal_{cat}_30s.pmtiles"
+        out = OUT_DIR / f"worldcereal_{cat}_30s{'_sample' if WINDOW else ''}.pmtiles"
         if extent is None:
             # Only in a sample without this category: an archive with no tiles, so the
             # map still loads the other categories
@@ -294,6 +365,8 @@ def stage_tiles(categories):
         bvp.build(str(merc), str(tmp), MAXZOOM, title, str(work / f"{cat}_levels"))
         shutil.move(str(tmp), str(out))
         shutil.rmtree(work / f"{cat}_levels")
+        # Only a reprojection of the 30" raster, large, and the disk is short
+        merc.unlink()
     shutil.rmtree(work, ignore_errors=True)
 
 
