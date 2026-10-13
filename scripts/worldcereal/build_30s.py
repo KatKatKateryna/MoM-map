@@ -325,6 +325,9 @@ def stage_mosaic(categories, partial=False):
 
 
 def stage_tiles(categories):
+    # The warp buffer, GDAL's block cache and the tiling must fit in this host's 3.9 GB:
+    # with 1 GB each the warp was killed for lack of memory
+    gdal.SetConfigOption("GDAL_CACHEMAX", "256")
     work = TEMP / "tiles_work"
     work.mkdir(parents=True, exist_ok=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -359,7 +362,7 @@ def stage_tiles(categories):
         gdal.Warp(str(merc), str(src), dstSRS="EPSG:3857", xRes=res, yRes=res,
                   outputBounds=(max(lon0, -180), lat0, min(lon1, 180), lat1), outputBoundsSRS="EPSG:4326",
                   srcNodata=NODATA, dstNodata=NODATA, resampleAlg="average", targetAlignedPixels=True,
-                  multithread=True, warpOptions=["NUM_THREADS=ALL_CPUS"], warpMemoryLimit=1024,
+                  multithread=True, warpOptions=["NUM_THREADS=ALL_CPUS"], warpMemoryLimit=256,
                   creationOptions=CREATE)
         log(f"{cat}: tiles")
         tmp = work / out.name

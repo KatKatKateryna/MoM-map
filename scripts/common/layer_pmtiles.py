@@ -18,6 +18,11 @@ import numpy as np
 import build_value_pmtiles as bvp  # sets PROJ_LIB for GDAL before importing it
 from osgeo import gdal
 
+# The warp buffer and GDAL's block cache (build_value_pmtiles sets 1 GB) kept small: on a
+# host with 4 GB of RAM, 1 GB of each got the WorldCereal warp killed for lack of memory
+gdal.SetConfigOption("GDAL_CACHEMAX", "256")
+WARP_MEMORY_MB = 256
+
 ROOT = Path(__file__).resolve().parents[2]
 TEMP = ROOT / "data" / "temp"
 PERSISTENT = ROOT / "data" / "persistent"
@@ -61,7 +66,7 @@ def to_mercator(src, out, resample="average", src_nodata=None, maxzoom=MAXZOOM, 
     gdal.Warp(str(tmp), str(src), format="GTiff", dstSRS="EPSG:3857", xRes=res, yRes=res, **bounds,
               srcNodata=src_nodata, dstNodata=NODATA, outputType=gdal.GDT_Float32,
               resampleAlg=resample, targetAlignedPixels=True,
-              multithread=True, warpOptions=["NUM_THREADS=ALL_CPUS"], warpMemoryLimit=2048,
+              multithread=True, warpOptions=["NUM_THREADS=ALL_CPUS"], warpMemoryLimit=WARP_MEMORY_MB,
               creationOptions=CREATE, callback=gdal.TermProgress_nocb)
     if scale != 1:
         scaled = out.with_name(out.name + ".scaled.part")
