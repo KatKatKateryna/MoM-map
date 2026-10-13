@@ -1,6 +1,7 @@
-"""Builds value PMTiles of an AI4G flooded-fraction GeoTIFF (build_ai4g_5s_se.py output).
+"""AI4G 5" south-east step 2: value PMTiles of an AI4G flooded-fraction GeoTIFF
+(se_5s_1_download_reduce.py output).
 
-Like build_ai4g_pmtiles.py, but for fractions instead of classes, and for any SRC.tif
+Like 2_build_pmtiles.py, but for fractions instead of classes, and for any SRC.tif
 given as the argument. SRC holds the flooded share of each cell in % (0..100), MASKED
 (101) for the exclusion mask and its nodata value for no tile. The tiles store the same
 values on a linear scale: lossless Terrarium WebP, value = R*256 + G + B/256 - 32768, so
@@ -8,14 +9,14 @@ values keep 1/256 precision (within 0.002 percentage points). Nodata is stored a
 (-255), or as SRC's nodata value if that is lower (e.g. -999). The archive metadata
 records the nodata value and the range of the other values, the map's default display
 range: value_scale {"type": "linear", "nodata": ..., "min": ..., "max": ...}.
-Tiled like build_value_pmtiles.py (whose log scale is left as it is for the other
+Tiled like common/build_value_pmtiles.py (whose log scale is left as it is for the other
 layers), but lower zooms take the maximum, never the average: MASKED is above any share,
 so a pixel is MASKED where any cell under it is masked, else it holds the highest flooded
 share under it. Tiled up to MAXZOOM (default 10, ~150 m pixels, about the 5"
-source). Intermediate rasters go to data/temp/<name>_work/, removed at the end. Output:
+source). Intermediate rasters go to data/temp/ai4g/<name>_work/, removed at the end. Output:
 OUT.pmtiles or data/persistent/ai4g/<SRC name>.pmtiles.
 
-Usage: python scripts/build_ai4g_fraction_pmtiles.py SRC.tif [OUT.pmtiles] [MAXZOOM]
+Usage: python scripts/ai4g/se_5s_2_build_pmtiles.py SRC.tif [OUT.pmtiles] [MAXZOOM]
 """
 import math
 import os
@@ -27,8 +28,9 @@ from pathlib import Path
 
 import numpy as np
 
-import build_flood_pmtiles as bfp  # sets PROJ_LIB for GDAL before importing it
-import build_value_pmtiles as bvp
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
+import build_value_pmtiles as bvp  # sets PROJ_LIB for GDAL before importing it
+import layer_pmtiles as lp
 from osgeo import gdal
 from pmtiles.tile import Compression, TileType, zxy_to_tileid
 from pmtiles.writer import Writer
@@ -150,11 +152,11 @@ def main():
     if not 2 <= len(sys.argv) <= 4:
         sys.exit(__doc__)
     src = Path(sys.argv[1])
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else bfp.PERSISTENT / "ai4g" / f"{src.stem}.pmtiles"
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else lp.PERSISTENT / "ai4g" / f"{src.stem}.pmtiles"
     maxzoom = int(sys.argv[3]) if len(sys.argv) > 3 else MAXZOOM
     title = (f"Sentinel-1 flood observations 2014-2024 (AI4G), {src.stem}: "
              f"flooded share 0-100 %, {MASKED} exclusion mask")
-    work = bfp.TEMP / f"{out.stem}_work"
+    work = lp.TEMP / "ai4g" / f"{out.stem}_work"
     out.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     build(str(src), str(out), maxzoom, title, str(work))

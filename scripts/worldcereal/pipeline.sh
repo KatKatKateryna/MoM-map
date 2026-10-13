@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Unattended run of the WorldCereal agriculture layers, from download to verified PMTiles.
 #
-#   1. scripts/build_worldcereal_30s.py counts / mosaic / tiles (each resumes)
-#   2. scripts/verify_agriculture_layer.py: builds the demo pages and checks the
+#   1. scripts/worldcereal/build_30s.py counts / mosaic / tiles (each resumes)
+#   2. scripts/worldcereal/verify_agriculture_layer.py: builds the demo pages and checks the
 #      agriculture layer in headless Chromium
 #
 # No git operations: the PMTiles are left in data/persistent/worldcereal/ to commit by hand.
@@ -10,15 +10,15 @@
 # Safe to start any number of times: a lock keeps one run at a time and finished stages
 # leave markers in data/temp/worldcereal/. Cron restarts it until the DONE marker exists,
 # then the cron entry removes itself:
-#   */15 * * * * /root/MoM-map/scripts/worldcereal_pipeline.sh >> /root/MoM-map/data/temp/worldcereal/pipeline.log 2>&1
+#   */15 * * * * /root/MoM-map/scripts/worldcereal/pipeline.sh >> /root/MoM-map/data/temp/worldcereal/pipeline.log 2>&1
 #   @reboot      (same)
 #
 # Runs in the mom-layers env (environment-layers.yml), set up on first start if missing.
 #
-# Usage: scripts/worldcereal_pipeline.sh
+# Usage: scripts/worldcereal/pipeline.sh
 set -uo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 STATE="$REPO/data/temp/worldcereal"
 # The mom-layers env (environment-layers.yml): GDAL, pmtiles, Playwright with its own Chromium
 PY="${WORLDCEREAL_PY:-/root/miniconda3/envs/mom-layers/bin/python}"
@@ -26,7 +26,7 @@ export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/root/.cache/ms-pla
 # What `conda activate` would set: GDAL cannot find PROJ's database without it
 ENV_PREFIX="$(dirname "$(dirname "$PY")")"
 export PROJ_DATA="$ENV_PREFIX/share/proj" GDAL_DATA="$ENV_PREFIX/share/gdal"
-CRON_TAG="worldcereal_pipeline.sh"
+CRON_TAG="worldcereal/pipeline.sh"
 mkdir -p "$STATE"
 cd "$REPO" || exit 1
 
@@ -66,10 +66,10 @@ if ! "$PY" -c "import osgeo, pmtiles, playwright" 2>/dev/null; then
   scripts/setup_layers_env.sh || { log "env setup FAILED, retried on the next start"; exit 1; }
 fi
 
-stage counts "$PY" -u scripts/build_worldcereal_30s.py counts 1
-stage mosaic "$PY" -u scripts/build_worldcereal_30s.py mosaic
-stage tiles  "$PY" -u scripts/build_worldcereal_30s.py tiles
-stage verify "$PY" -u scripts/verify_agriculture_layer.py
+stage counts "$PY" -u scripts/worldcereal/build_30s.py counts 1
+stage mosaic "$PY" -u scripts/worldcereal/build_30s.py mosaic
+stage tiles  "$PY" -u scripts/worldcereal/build_30s.py tiles
+stage verify "$PY" -u scripts/worldcereal/verify_agriculture_layer.py
 
 # The 10 m downloads are kept until the tiles are built and verified
 rm -f "$STATE/downloads/"*.tif

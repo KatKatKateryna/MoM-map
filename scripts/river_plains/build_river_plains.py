@@ -4,10 +4,10 @@ Floodplain cells (value 0) become a muted blue, no-data (255) stays transparent.
 Each zoom level is warped to Web Mercator once (area-averaged, so thin rivers fade
 rather than vanish at low zooms) and cut into palette PNG tiles in parallel.
 
-Usage: python scripts/build_river_plains.py OUT.pmtiles MAXZOOM AF [AS EU ...]
+Usage: python scripts/river_plains/build_river_plains.py OUT.pmtiles MAXZOOM AF [AS EU ...]
 Several continents are mosaicked into one file. build() can also take a ready coverage
 raster (`src`, 0-255) instead, and resample with "max" instead of "average", as
-build_river_plains_30s.py does.
+build_30s.py does.
 """
 import glob
 import math
@@ -19,7 +19,7 @@ from pathlib import Path
 
 # GDAL needs its own bundled proj.db, not pyproj's copy (same as update_tiles.py)
 _venv_site_packages = (
-    Path(__file__).parent.parent.resolve() / ".venv" / "Lib" / "site-packages"
+    Path(__file__).resolve().parents[2] / ".venv" / "Lib" / "site-packages"
 )
 for _proj_dir in (
     _venv_site_packages / "osgeo" / "data" / "proj",  # GDAL's own copy
@@ -42,7 +42,7 @@ from pmtiles.writer import Writer
 gdal.UseExceptions()
 gdal.SetConfigOption("GDAL_CACHEMAX", "1024")
 
-SRC_DIR = Path(__file__).parent.parent.resolve() / "data" / "temp" / "river_plains"
+SRC_DIR = Path(__file__).resolve().parents[2] / "data" / "temp" / "river_plains"
 BLUE = (74, 127, 181)  # #4a7fb5
 NODATA = 255
 TILE = 256

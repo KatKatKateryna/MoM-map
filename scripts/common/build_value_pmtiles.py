@@ -10,7 +10,7 @@ raw values would. The archive metadata (`value_scale`) says how to turn values i
 indexes. Lower zooms average the valid cells under each pixel (or take their maximum,
 with resample="max", for classes).
 
-Usage: python scripts/build_value_pmtiles.py SRC.tif OUT.pmtiles MAXZOOM [NAME]
+Usage: python scripts/common/build_value_pmtiles.py SRC.tif OUT.pmtiles MAXZOOM [NAME]
 """
 import math
 import os
@@ -21,7 +21,7 @@ from pathlib import Path
 
 # GDAL needs its own bundled proj.db, not pyproj's copy (same as update_tiles.py)
 _venv_site_packages = (
-    Path(__file__).parent.parent.resolve() / ".venv" / "Lib" / "site-packages"
+    Path(__file__).resolve().parents[2] / ".venv" / "Lib" / "site-packages"
 )
 for _proj_dir in (
     _venv_site_packages / "osgeo" / "data" / "proj",  # GDAL's own copy

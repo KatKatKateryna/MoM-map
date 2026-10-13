@@ -1,10 +1,11 @@
-"""Merges the GloFAS permanent water body tiles (JRC CEMS) into one global GeoTIFF.
+"""GloFAS extra, not used by the map layers: merges the GloFAS permanent water body tiles
+(JRC CEMS) into one global GeoTIFF.
 
 Value 1 = permanent water (rivers, lakes), nodata 255 elsewhere, 3" (~90 m) WGS84.
-Input data/temp/glofas_Permanent_WaterBodies/ from download_glofas.py.
+Input data/temp/glofas/Permanent_WaterBodies/ from 1_download.py.
 
-Usage: python scripts/build_glofas_water.py [OUT.tif]
-       default out: data/temp/glofas_permanent_water.tif
+Usage: python scripts/glofas/permanent_water.py [OUT.tif]
+       default out: data/temp/glofas/permanent_water.tif
 """
 import os
 import sys
@@ -13,7 +14,7 @@ from pathlib import Path
 
 # GDAL needs its own bundled proj.db, not pyproj's copy (same as update_tiles.py)
 _venv_site_packages = (
-    Path(__file__).parent.parent.resolve() / ".venv" / "Lib" / "site-packages"
+    Path(__file__).resolve().parents[2] / ".venv" / "Lib" / "site-packages"
 )
 for _proj_dir in (
     _venv_site_packages / "osgeo" / "data" / "proj",  # GDAL's own copy
@@ -34,13 +35,13 @@ gdal.UseExceptions()
 gdal.SetConfigOption("GDAL_CACHEMAX", "2048")
 gdal.SetConfigOption("GDAL_NUM_THREADS", "ALL_CPUS")
 
-TEMP = Path(__file__).parent.parent / "data" / "temp"
+TEMP = Path(__file__).resolve().parents[2] / "data" / "temp" / "glofas"
 NODATA = 255
 
 
 def main():
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else TEMP / "glofas_permanent_water.tif"
-    tiles = sorted(str(p) for p in (TEMP / "glofas_Permanent_WaterBodies").glob("*_permanent_water.tif"))
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else TEMP / "permanent_water.tif"
+    tiles = sorted(str(p) for p in (TEMP / "Permanent_WaterBodies").glob("*_permanent_water.tif"))
     print(f"{len(tiles)} tiles -> {out}", flush=True)
 
     t0 = time.time()

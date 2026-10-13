@@ -1,20 +1,21 @@
-"""Reduces the AI4G flood dataset (Microsoft AI for Good, Sentinel-1, 2014-2024) to 30".
+"""AI4G step 1: downloads the AI4G flood dataset (Microsoft AI for Good, Sentinel-1,
+2014-2024) tile by tile and reduces it to 30".
 
 Each 3x3 degree tile's 240m-buffer.tif (0.6", values 0 no flood, 1 exclusion mask,
 2 flooded at any time) is downloaded into memory, never to disk, and reduced to the
 30" Aqueduct grid by the maximum of each 50x50 block: 2 if any pixel was flooded,
 else 1 if any is masked, else 0. Tiles start on whole degrees, so the blocks nest
-exactly. Each reduced tile (360x360) goes to data/temp/ai4g_30s/; existing ones are
+exactly. Each reduced tile (360x360) goes to data/temp/ai4g/30s/; existing ones are
 skipped, so re-running resumes. Some files are empty (0 bytes) on the server: they get
-a .empty marker instead and count as no tile. data/temp/ai4g_30s.vrt mosaics the tiles
-(255 = no tile).
+a .empty marker instead and count as no tile. data/temp/ai4g/ai4g_30s.vrt mosaics the
+tiles (255 = no tile).
 
 --mosaic downloads nothing: it writes the tiles done so far into one global 30" GeoTIFF,
-OUT.tif or data/temp/ai4g_30s.tif (0, 1, 2; 255 = no tile yet), replacing it. It can run
-while a download does.
+OUT.tif or data/temp/ai4g/ai4g_30s.tif (0, 1, 2; 255 = no tile yet), replacing it. It can
+run while a download does.
 
-Usage: python scripts/build_ai4g_30s.py [WORKERS]
-       python scripts/build_ai4g_30s.py --mosaic [OUT.tif]
+Usage: python scripts/ai4g/1_download_reduce_30s.py [WORKERS]
+       python scripts/ai4g/1_download_reduce_30s.py --mosaic [OUT.tif]
 """
 import json
 import os
@@ -26,6 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 import build_value_pmtiles  # noqa: F401  sets PROJ_LIB for GDAL before importing it
 from osgeo import gdal
 
@@ -34,8 +36,8 @@ gdal.UseExceptions()
 REPO = "ai-for-good-lab/ai4g-flood-dataset"
 API = f"https://huggingface.co/api/datasets/{REPO}/tree/main"
 FILE_URL = f"https://huggingface.co/datasets/{REPO}/resolve/main/"
-TEMP = Path(__file__).parent.parent / "data" / "temp"
-OUT_DIR = TEMP / "ai4g_30s"
+TEMP = Path(__file__).resolve().parents[2] / "data" / "temp" / "ai4g"
+OUT_DIR = TEMP / "30s"
 CELLS = 360  # 30" cells per 3 degree tile
 NODATA = 255
 

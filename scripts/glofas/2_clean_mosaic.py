@@ -1,24 +1,24 @@
-"""Cleans the GloFAS flood depth tiles (JRC CEMS) and merges them into a global mosaic.
+"""GloFAS step 2: cleans the GloFAS flood depth tiles (JRC CEMS) and mosaics them.
 
 Permanent water (rivers, lakes) is patched into the depth maps by JRC; it is always
 removed here so only flooding is left. The spurious-depth layer flags areas where the
 hydraulic model predicts >10 m depths in small channels (<3,000 km2) for RP10, plus a
 2 km buffer: likely DEM sinks and model artefacts. Modes for flood cells inside them:
-  flag  set them to -1 (default)
+  keep  ignore the spurious layer (default; what the map's GloFAS layer uses)
+  flag  set them to -1
   mask  drop them all (JRC's "use with caution")
   deep  drop only cells deeper than 10 m, keep shallower floodplain
-  keep  ignore the spurious layer
 
 Single Int16 band: depth in centimetres (>= 0), -1 flagged, -255 nodata (dry or
 permanent water). Half the size of the source Float32 and plenty precise. Tiles go to
-data/temp/glofas_<RP>_<mode>/ (existing ones are skipped, so re-running resumes),
-mosaicked by data/temp/glofas_<RP>_<mode>.vrt (tiles share one 3" grid).
+data/temp/glofas/<RP>_<mode>/ (existing ones are skipped, so re-running resumes),
+mosaicked by data/temp/glofas/<RP>_<mode>.vrt (tiles share one 3" grid).
 
-Needs data/temp/glofas_<RP>/, glofas_Permanent_WaterBodies/ and
-glofas_Spurious_Depths/ from download_glofas.py.
+Needs data/temp/glofas/<RP>/, Permanent_WaterBodies/ and Spurious_Depths/ from
+1_download.py.
 
-Usage: python scripts/build_glofas_mosaic.py [RP] [MODE] [WORKERS]
-       python scripts/build_glofas_mosaic.py RP500 flag 6
+Usage: python scripts/glofas/2_clean_mosaic.py [RP] [MODE] [WORKERS]
+       python scripts/glofas/2_clean_mosaic.py RP500 keep 6
 """
 import os
 import sys
@@ -28,7 +28,7 @@ from pathlib import Path
 
 # GDAL needs its own bundled proj.db, not pyproj's copy (same as update_tiles.py)
 _venv_site_packages = (
-    Path(__file__).parent.parent.resolve() / ".venv" / "Lib" / "site-packages"
+    Path(__file__).resolve().parents[2] / ".venv" / "Lib" / "site-packages"
 )
 for _proj_dir in (
     _venv_site_packages / "osgeo" / "data" / "proj",  # GDAL's own copy
@@ -48,12 +48,12 @@ from osgeo import gdal
 
 gdal.UseExceptions()
 
-TEMP = Path(__file__).parent.parent / "data" / "temp"
+TEMP = Path(__file__).resolve().parents[2] / "data" / "temp" / "glofas"
 SRC_NODATA = -9999.0
 NODATA = -255
 FLAG = -1
 DEEP_M = 10.0
-MODES = ("flag", "mask", "deep", "keep")
+MODES = ("keep", "flag", "mask", "deep")
 
 
 def read_mask(path):
@@ -100,14 +100,14 @@ def clean_tile(args):
 
 def main():
     rp = sys.argv[1] if len(sys.argv) > 1 else "RP500"
-    mode = sys.argv[2] if len(sys.argv) > 2 else "flag"
+    mode = sys.argv[2] if len(sys.argv) > 2 else "keep"
     workers = int(sys.argv[3]) if len(sys.argv) > 3 else 6
     assert mode in MODES, f"mode must be one of {MODES}"
 
-    in_dir = TEMP / f"glofas_{rp}"
-    water_dir = TEMP / "glofas_Permanent_WaterBodies"
-    spurious_dir = TEMP / "glofas_Spurious_Depths"
-    out_dir = TEMP / f"glofas_{rp}_{mode}"
+    in_dir = TEMP / rp
+    water_dir = TEMP / "Permanent_WaterBodies"
+    spurious_dir = TEMP / "Spurious_Depths"
+    out_dir = TEMP / f"{rp}_{mode}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     jobs = []
@@ -137,7 +137,7 @@ def main():
               f"{spurious_total:,} spurious {verb} ({spurious_total / wet_total:.1%})")
 
     tiles = sorted(str(p) for p in out_dir.glob("*.tif"))
-    vrt_path = TEMP / f"glofas_{rp}_{mode}.vrt"
+    vrt_path = TEMP / f"{rp}_{mode}.vrt"
     gdal.BuildVRT(str(vrt_path), tiles)
     ds = gdal.Open(str(vrt_path))
     print(f"Mosaic {vrt_path} ({ds.RasterXSize} x {ds.RasterYSize}, {len(tiles)} tiles)")

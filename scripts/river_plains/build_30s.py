@@ -7,7 +7,7 @@ an edge counts for both cells it overlaps. The raster is kept as
 data/temp/river_plains_30s.tif and tiled by build_river_plains.py (same blue) up to
 MAXZOOM, with "max" at every zoom so it stays opaque when zoomed out.
 
-Usage: python scripts/build_river_plains_30s.py [MAXZOOM]   (default 7, like the flood layers)
+Usage: python scripts/river_plains/build_30s.py [MAXZOOM]   (default 7, like the flood layers)
 """
 import shutil
 import sys
@@ -17,7 +17,7 @@ from pathlib import Path
 import build_river_plains as brp  # sets PROJ_LIB for GDAL before importing it
 from osgeo import gdal
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 TEMP = ROOT / "data" / "temp"
 OUT_TIF = TEMP / "river_plains_30s.tif"
 OUT_PMTILES = ROOT / "data" / "persistent" / "river_plains" / "river_plains_30s.pmtiles"

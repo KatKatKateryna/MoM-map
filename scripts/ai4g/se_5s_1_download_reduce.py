@@ -1,7 +1,8 @@
-"""Reduces the AI4G flood dataset (Microsoft AI for Good, Sentinel-1, 2014-2024) to 5",
-for a box around Mississippi, North Carolina, Florida and West Virginia only.
+"""AI4G 5" south-east step 1: downloads the AI4G flood dataset (Microsoft AI for Good,
+Sentinel-1, 2014-2024) tile by tile and reduces it to 5", for a box around Mississippi,
+North Carolina, Florida and West Virginia only.
 
-A copy of build_ai4g_30s.py, limited to BBOX (the four states' bounds extended by at
+A copy of 1_download_reduce_30s.py, limited to BBOX (the four states' bounds extended by at
 least BUFFER_KM in every direction), at 5" instead of 30" and with the flooded share (in
 %) instead of classes. Each 3x3 degree tile's 240m-buffer.tif (0.6", values 0 no flood,
 1 exclusion mask, 2 flooded at any time) that intersects BBOX is downloaded into memory,
@@ -11,17 +12,17 @@ never to disk, and reduced to 5" Float32, one band:
   -255    NODATA: no tile
 5" is 8 1/3 source pixels, so the blocks do not nest exactly: each source pixel goes to
 the 5" cell containing its centre (rows and columns of 8 or 9 pixels, none counted
-twice). Each reduced tile (2160x2160) goes to data/temp/ai4g_5s_se/; existing ones are
+twice). Each reduced tile (2160x2160) goes to data/temp/ai4g/5s_se/; existing ones are
 skipped, so re-running resumes. Some files download as 0 bytes although the Hugging Face
 page lists them with a size (a known LFS problem, dataset discussion #3): they get a
 .empty marker instead, count as no tile and are listed at the end. At the end the tiles
-are clipped to BBOX in one GeoTIFF, data/temp/ai4g_5s_se.tif.
+are clipped to BBOX in one GeoTIFF, data/temp/ai4g/ai4g_5s_se.tif.
 
 --mosaic downloads nothing: it writes the tiles done so far into that GeoTIFF (or
 OUT.tif), replacing it. It can run while a download does.
 
-Usage: python scripts/build_ai4g_5s_se.py [WORKERS]
-       python scripts/build_ai4g_5s_se.py --mosaic [OUT.tif]
+Usage: python scripts/ai4g/se_5s_1_download_reduce.py [WORKERS]
+       python scripts/ai4g/se_5s_1_download_reduce.py --mosaic [OUT.tif]
 """
 import json
 import math
@@ -35,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 import build_value_pmtiles  # noqa: F401  sets PROJ_LIB for GDAL before importing it
 from osgeo import gdal
 
@@ -43,8 +45,8 @@ gdal.UseExceptions()
 REPO = "ai-for-good-lab/ai4g-flood-dataset"
 API = f"https://huggingface.co/api/datasets/{REPO}/tree/main"
 FILE_URL = f"https://huggingface.co/datasets/{REPO}/resolve/main/"
-TEMP = Path(__file__).parent.parent / "data" / "temp"
-OUT_DIR = TEMP / "ai4g_5s_se"
+TEMP = Path(__file__).resolve().parents[2] / "data" / "temp" / "ai4g"
+OUT_DIR = TEMP / "5s_se"
 MOSAIC = TEMP / "ai4g_5s_se.tif"
 # West, south, east, north of Mississippi, Florida, North Carolina and West Virginia
 # together (US Census state bounds): Mississippi's west edge, the Florida Keys, Cape

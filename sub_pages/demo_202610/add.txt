@@ -38,7 +38,7 @@ EXTRA_SOURCES.push({
 });
 */
 EXTRA_SOURCES.push({
-  // 30" (~1 km) version of the 250 m source, like the flood layers (scripts/build_river_plains_30s.py)
+  // 30" (~1 km) version of the 250 m source, like the flood layers (scripts/river_plains/build_30s.py)
   url: 'data/persistent/river_plains/river_plains_30s.pmtiles',
   name: 'River floodplains',
   description: 'Global floodplains (GFPLAIN250m, Nardi et al. 2006, 2018), ' +
@@ -53,7 +53,7 @@ EXTRA_SOURCES.push({
   color: '#f1f5f9',
 });
 // Agriculture, under Population. One layer per WorldCereal product, each its own dark
-// green (scripts/build_worldcereal_30s.py). Labels are the dataset's product names
+// green (scripts/worldcereal/build_30s.py). Labels are the dataset's product names
 // (<season>_<product>); products joined with + are combined (larger share per cell)
 const WORLDCEREAL = 'data/persistent/worldcereal/worldcereal_';
 EXTRA_SOURCES.push({

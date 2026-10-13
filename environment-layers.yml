@@ -1,6 +1,6 @@
-# Env for building data layers locally (scripts/build_*.py) and checking them in a headless
-# browser (scripts/verify_*.py). Separate from environment.yml (myenv), which CI and
-# publishing use. Set up with scripts/setup_layers_env.sh.
+# Env for building data layers locally (scripts/<dataset>/, see Data_sources.md) and checking
+# them in a headless browser (scripts/worldcereal/verify_*.py). Separate from environment.yml
+# (myenv), which CI and publishing use. Set up with scripts/setup_layers_env.sh.
 name: mom-layers
 channels:
   - conda-forge

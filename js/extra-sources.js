@@ -19,7 +19,7 @@
 // `above: true` draws the layer over the watershed fill instead of under it; the
 // watershed borders, highlight and click layer stay on top.
 // `visible: false` starts the layer hidden, with its legend toggle off.
-// `values` is for value rasters (scripts/build_value_pmtiles.py: values stored as terrain-RGB):
+// `values` is for value rasters (scripts/common/build_value_pmtiles.py: values stored as terrain-RGB):
 // they are colored at runtime and get a min-max slider that hides cells outside the range:
 //   values: { stops: [1, '#f2f0f7', 1000, '#54278f'], scale: 'log', min, max, unit: 'people',
 //             initialMin, initialMax, decimals }
@@ -82,7 +82,7 @@ function colorExpr(c) {
 
 // ── Value rasters ─────────────────────────────────────────────────────────────
 // valueScale (archive metadata `value_scale`) maps a value to what the tiles store:
-// for 'log' the index of the value on a log scale (scripts/build_value_pmtiles.py); for
+// for 'log' the index of the value on a log scale (scripts/common/build_value_pmtiles.py); for
 // 'linear' the value itself, with 0 and negative values as data and `nodata` for none
 function resolveValues(values, valueScale) {
   const { stops, scale = 'linear', exponent = 3, unit = '', initialMin, initialMax, decimals = 0 } = values;
