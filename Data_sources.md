@@ -9,7 +9,7 @@ each layer from scratch. The layers are wired into the demo pages in
 | Observed floods, 2014-2024 (AI4G) | `data/persistent/ai4g/ai4g_flood_1km.pmtiles` | Microsoft AI for Good flood dataset (Sentinel-1) | `scripts/ai4g/` |
 | Flood extent, any model | `data/persistent/flood_max/flood_extent_1km.pmtiles` | WRI Aqueduct Floods + Copernicus GloFAS | `scripts/aqueduct/`, `scripts/glofas/`, `scripts/flood_extent/` |
 | Population | `data/persistent/population_1km/population_1km.pmtiles` | JRC GHS-POP R2023A, 2025, 1 km | `scripts/population/` |
-| Agriculture (WorldCereal 2021) | `data/persistent/worldcereal/worldcereal_<category>_30s_sample.pmtiles` | ESA WorldCereal 2021 v100 | `scripts/worldcereal/` |
+| Agriculture (WorldCereal 2021) | `data/persistent/worldcereal/worldcereal_<category>_30s.pmtiles` | ESA WorldCereal 2021 v100 | `scripts/worldcereal/` |
 | River floodplains | `data/persistent/river_plains/river_plains_30s.pmtiles` | GFPLAIN250m | `scripts/river_plains/` |
 
 Also built, but commented out or not on the page: the single flood depth layers
@@ -238,11 +238,13 @@ layer in headless Chromium. It is unattended and safe to restart, from cron. A f
 run downloads ~156 GB, more than this host's disk, so the pipeline deletes the 10 m files
 once the tiles are verified. It never commits anything.
 
-**The demo uses a sample.** `demo_202610` loads `worldcereal_<category>_30s_sample.pmtiles`,
-built with `--window` (all in `data/temp/worldcereal_sample/`) from AEZ 46173 only, the US
-Corn Belt. The data covers 98°W-90°W, 38°N-42.5°N. Only temporary crops, maize and winter
-cereals have data in it; active cropland, irrigation and spring cereals are empty archives.
-The global `worldcereal_<category>_30s.pmtiles` files are not on the page yet.
+**The demo uses the global layers.** `demo_202610` loads the global
+`worldcereal_<category>_30s.pmtiles`, built by `pipeline.sh` (all stages done and verified
+2026-10-14). The samples `worldcereal_<category>_30s_sample.pmtiles` are still in the
+folder but not on the page. They were built with `--window` (all in
+`data/temp/worldcereal_sample/`) from AEZ 46173 only, the US Corn Belt (98°W-90°W,
+38°N-42.5°N). Only temporary crops, maize and winter cereals have data in them; active
+cropland, irrigation and spring cereals are empty archives.
 
 **On the map.** One dark green ramp per category, one checkbox each. The slider (share
 of the cell, 1-100 %) opens hiding cells under 20 %.
