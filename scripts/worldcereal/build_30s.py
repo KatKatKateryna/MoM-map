@@ -335,11 +335,16 @@ def stage_tiles(categories):
         title = CATEGORIES[cat][1]
         src = TEMP / f"{cat}_30s.tif"
         merc = work / f"{cat}_3857.tif"
+        out = OUT_DIR / f"worldcereal_{cat}_30s{'_sample' if WINDOW else ''}.pmtiles"
+        # Resumes: an archive newer than its 30" raster is already done (it is moved into
+        # place only when complete)
+        if out.exists() and out.stat().st_mtime > src.stat().st_mtime:
+            log(f"{cat}: {out.name} newer than {src.name}, skipped")
+            continue
         log(f"{cat}: Web Mercator")
         # Zoom 8 pixel size, then build() averages the shares (zeros included) per zoom
         # Only the data's extent (plus a cell), not the whole world
         extent = json.loads((TEMP / f"{cat}_30s.json").read_text())["extent"]
-        out = OUT_DIR / f"worldcereal_{cat}_30s{'_sample' if WINDOW else ''}.pmtiles"
         if extent is None:
             # Only in a sample without this category: an archive with no tiles, so the
             # map still loads the other categories
