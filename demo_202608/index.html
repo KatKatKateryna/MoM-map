@@ -31,9 +31,12 @@
       <h4 class="side-panel__heading">About</h4>
       <p class="side-panel__text">This map is illustrating the outputs of Model of Models (MoM) - flood detection tool developed in partnership with NASA's Earth Applied Sciences Disasters program.</p>
     </section>
-    <section class="side-panel__section">
-      <div id="legend">
-        <h4>Alert Level</h4>
+    <section class="side-panel__section" id="alerts-section">
+      <label class="side-panel__heading legend-toggle">
+        <input type="checkbox" id="alerts-toggle" checked>
+        <span>Alerts</span>
+      </label>
+      <div id="legend" class="legend-body">
         <div class="leg"><div class="swatch" style="background:#e0e0e0;border-color:#aaa"></div>No data</div>
       </div>
     </section>
