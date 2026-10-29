@@ -19,8 +19,25 @@ const OUTLINE_COLOR = [
   '#bdbdbd'
 ];
 
+const WS_LAYERS = ['ws-hit', 'ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill'];
+const alertsToggle = document.getElementById('alerts-toggle');
+
+// The Alerts checkbox shows or hides every watershed layer, the click layer too
+function applyAlertsVisibility() {
+  const visibility = alertsToggle.checked ? 'visible' : 'none';
+  for (const id of WS_LAYERS) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
+  }
+  document.getElementById('alerts-section').classList.toggle('legend-off', !alertsToggle.checked);
+}
+
+alertsToggle.addEventListener('change', () => {
+  if (!alertsToggle.checked) popup.remove();
+  applyAlertsVisibility();
+});
+
 function addSnapshotLayers(entry) {
-  for (const id of ['ws-hit', 'ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill']) {
+  for (const id of WS_LAYERS) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getSource('ws')) map.removeSource('ws');
@@ -82,6 +99,8 @@ function addSnapshotLayers(entry) {
     'source-layer': 'watersheds',
     paint: { 'fill-color': '#000000', 'fill-opacity': 0 },
   });
+  // Snapshot swaps re-add the layers: keep them as the checkbox says
+  applyAlertsVisibility();
 }
 
 function selectSnapshot(entry) {
@@ -123,7 +142,7 @@ fetch('data/tiles/metadata.json')
 function updateLegend() {
   const order = ['Warning', 'Watch', 'Advisory', 'Information'];
   const el = document.getElementById('legend');
-  el.innerHTML = '<h4>Alert Level</h4>';
+  el.innerHTML = '';
 
   for (const level of order) {
     const color = ALERT_COLOR[level];
