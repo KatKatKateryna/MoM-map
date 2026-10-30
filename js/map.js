@@ -31,6 +31,10 @@ const NO_DATA_COLOR = '#e0e0e0';
 // Layer metadata key of extra layers drawn above the watershed layers
 const ABOVE_WATERSHEDS = 'mom:above-watersheds';
 
+// GloFAS gauge points (gauges.js, SHOW_GAUGES) stay on top: layers added later go under them
+const GAUGES_LAYER = 'gauges';
+const topBeforeId = () => map.getLayer(GAUGES_LAYER) ? GAUGES_LAYER : undefined;
+
 // ── PMTiles protocol ──────────────────────────────────────────────────────────
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile.bind(protocol));
@@ -62,6 +66,10 @@ map.on('style.load', () => {
     map.setFilter(id, ['all', map.getFilter(id), ['!', ['in', ['get', 'class'], ['literal', ['ocean', 'sea', 'bay', 'strait']]]]]);
   }
 });
+
+// Resolves on the map's load event, also for code that asks after it fired (map.loaded()
+// is false again while tiles are loading, so it cannot tell)
+const mapLoaded = new Promise(resolve => map.once('load', resolve));
 
 map.touchZoomRotate.disableRotation();
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');

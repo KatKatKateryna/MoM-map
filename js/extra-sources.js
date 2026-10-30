@@ -269,8 +269,8 @@ async function addExtraSource(entry, i, section) {
   const later = map.getStyle().layers.find(l =>
     l.metadata?.[EXTRA_ORDER] > i && !!l.metadata[ABOVE_WATERSHEDS] === above)?.id;
   const beforeId = later ?? (above
-    ? (map.getLayer('ws-outline') ? 'ws-outline' : undefined)
-    : (map.getLayer('ws-fill') ? 'ws-fill' : undefined));
+    ? (map.getLayer('ws-outline') ? 'ws-outline' : topBeforeId())
+    : (map.getLayer('ws-fill') ? 'ws-fill' : topBeforeId()));
   const tag = {
     layout: { visibility: visible ? 'visible' : 'none' },
     metadata: { [EXTRA_ORDER]: i, ...(above && { [ABOVE_WATERSHEDS]: true }) },
