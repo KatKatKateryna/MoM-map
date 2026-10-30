@@ -28,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       retention_days:
-        description: 'Days of snapshots to retain (4/day; gauges 1/day). Leave default unless testing.'
+        description: 'Days of snapshots to retain (4/day; gauges 1/day; at most 30 tiles each). Leave default unless testing.'
         required: false
         type: number
         default: 7
@@ -134,7 +134,24 @@ jobs:
           cp js/*.js                    deploy/js/
           cp assets/*                   deploy/assets/
           cp -r data/persistent         deploy/data/
-          if [ -d data/tiles ]; then cp -r data/tiles deploy/data/; fi
+          if [ -d data/tiles ]; then
+            # Publish only the tiles in each window (metadata.json, at most 30 per layer):
+            # a run that updates one layer still restores the other's orphans from gh-pages
+            python3 - <<'EOF'
+          import json
+          from pathlib import Path
+          for d in (Path("data/tiles"), Path("data/tiles/gauges")):
+              meta = d / "metadata.json"
+              if not meta.exists():
+                  continue
+              keep = {s.get("file") for s in json.loads(meta.read_text()).get("snapshots", [])}
+              for f in d.glob("*.pmtiles"):
+                  if f.name not in keep:
+                      print(f"Not publishing {f}")
+                      f.unlink()
+          EOF
+            cp -r data/tiles deploy/data/
+          fi
           for demo in sub_pages/demo_*/; do
             demo="${demo%/}"
             name="$(basename "$demo")"
@@ -147,7 +164,8 @@ jobs:
           grep -v -e "^data/tiles/" -e "^/demo_" .gitignore > deploy/.gitignore || true
           touch deploy/.nojekyll
 
-      # Adds to gh-pages without deleting: snapshots out of the window stay there
+      # With new data, deploy holds the full tile windows, so clean removes the tiles that
+      # left them from gh-pages; without, deploy has no tiles and gh-pages keeps its own
       - name: Deploy to gh-pages
         if: github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4
@@ -155,4 +173,4 @@ jobs:
           token: ${{ secrets.DEPLOY_PAT }}
           branch: gh-pages
           folder: deploy
-          clean: false
+          clean: ${{ steps.tiles.outputs.new == 'true' || steps.gauges.outputs.new == 'true' }}

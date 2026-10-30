@@ -25,14 +25,17 @@ def _env_bool(name, default=False):
 
 
 SNAPSHOTS_PER_DAY = 4
-RETENTION_DAYS = _env_int(
-    "RETENTION_DAYS", 7
+MAX_TILES = 30  # hard cap on published tiles per layer (watersheds, gauges)
+RETENTION_DAYS = min(
+    _env_int("RETENTION_DAYS", 7), MAX_TILES
 )  # override via env for manual workflow_dispatch runs
 MAX_SNAPSHOTS = SNAPSHOTS_PER_DAY * RETENTION_DAYS  # last 4×7 snapshots kept
 ONLY_TIMESTAMP_PER_DAY = _env_bool(
     "ONLY_TIMESTAMP_PER_DAY", True
 )  # True: keep only each day's latest snapshot, dropping the other 3/day
-EFFECTIVE_MAX_SNAPSHOTS = RETENTION_DAYS if ONLY_TIMESTAMP_PER_DAY else MAX_SNAPSHOTS
+EFFECTIVE_MAX_SNAPSHOTS = min(
+    RETENTION_DAYS if ONLY_TIMESTAMP_PER_DAY else MAX_SNAPSHOTS, MAX_TILES
+)
 OVERWRITE_EXISTING = _env_bool(
     "OVERWRITE_EXISTING", False
 )  # clear tiles/metadata before this run
