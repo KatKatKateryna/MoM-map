@@ -84,9 +84,9 @@ def keep_latest_per_day(items, csv_of, label=""):
     return kept
 
 
-# ── GloFAS gauges (threspoints_YYYYMMDDHH.txt, one file per day) ──────────────
+# ── GloFAS gauges (threspoints_YYYYMMDDHH.csv, one file per day) ──────────────
 # Listed next to the Final_Alert folder, in GLOFAS; kept RETENTION_DAYS files, newest first
-GAUGE_HREF_RE = re.compile(r'href="(threspoints_\d{10}\.txt)"')
+GAUGE_HREF_RE = re.compile(r'href="(threspoints_\d{10}\.csv)"')
 
 _GAUGE_TIMESTAMP_RE = re.compile(r"threspoints_(\d{4})(\d{2})(\d{2})(\d{2})")
 

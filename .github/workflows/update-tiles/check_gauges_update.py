@@ -2,7 +2,7 @@
 """
 Quick check, before the slow environment setup in CI, that update_gauges.py has work to do.
 
-Lists the GloFAS gauge files (threspoints_*.txt) in the GLOFAS folder next to MOM_CSV_URL's
+Lists the GloFAS gauge files (threspoints_*.csv) in the GLOFAS folder next to MOM_CSV_URL's
 Final_Alert and compares the newest RETENTION_DAYS of them with the gauge snapshots already
 made: those in data/tiles/gauges/metadata.json, or with GAUGES_TILES_URL (the deployed
 data/tiles/gauges/ folder) those in its metadata.json whose file is there.

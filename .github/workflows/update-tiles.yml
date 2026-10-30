@@ -1,18 +1,27 @@
-# Runs on cron schedule, generates PMTiles from the latest CSV and deploys map.html to the gh-pages branch for GitHub Pages.
+# Publishes the whole map to the gh-pages branch in one deploy (one GitHub Pages build):
+# the app and demo pages, plus new watershed snapshots (Final_Attributes CSVs) and GloFAS
+# gauge snapshots (threspoints CSVs) when the MoM server has any. Runs daily and on changes.
 
-name: Update map tiles
+name: Update map
 
 on:
   schedule:
     - cron: '30 12 * * *'
   push:
-    branches: 
+    branches:
       - main
     paths:
-      - '.github/workflows/update-tiles/**'
-      - 'environment.yml'
-      - 'data/watershed_shp/**'
+      - '*.html'
+      - 'assets/**'
+      - 'css/**'
+      - 'js/**'
       - 'sub_pages/**'
+      - 'data/persistent/**'
+      - 'data/watershed_shp/**'
+      - 'environment.yml'
+      - '.github/actions/**'
+      - '.github/workflows/update-tiles.yml'
+      - '.github/workflows/update-tiles/**'
   pull_request:
     branches:
       - main
@@ -34,35 +43,65 @@ on:
         type: boolean
         default: true
 
+# One run at a time: a push during the daily run waits for it instead of racing it to gh-pages
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
 jobs:
-  update-tiles:
+  update-map:
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write
       pages: write
 
+    env:
+      MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
+      RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
+      OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
+      ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
+      PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+
     steps:
       - uses: actions/checkout@v4
 
-      # First, in seconds: stops the run when the MoM server is unreachable or has no new
-      # snapshot (update_tiles.py would end the same way, minutes later). Compares with the
-      # deployed tiles, so the slow restore below only runs when there is work
-      - name: Check for new CSVs
-        env:
-          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
-          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
-          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
-          ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
-          TILES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/tiles/
-        run: python3 .github/workflows/update-tiles/check_tiles_update.py
+      - name: Remove stale demo pages from gh-pages
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/remove-stale-demo-pages
+        with:
+          deploy-token: ${{ secrets.DEPLOY_PAT }}
 
-      - name: Restore previous snapshots from gh-pages
+      # In seconds, against the deployed metadata: is there a new watershed snapshot?
+      # check_tiles_update.py exits 1 when the server is unreachable or there is nothing new,
+      # which here only skips the watershed steps
+      - name: Check for new watershed CSVs
+        id: tiles
+        env:
+          TILES_URL: ${{ env.PAGES_URL }}/data/tiles/
+        run: |
+          if python3 .github/workflows/update-tiles/check_tiles_update.py; then
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Never fails; sets new=true or new=false
+      - name: Check for new gauge files
+        id: gauges
+        env:
+          GAUGES_TILES_URL: ${{ env.PAGES_URL }}/data/tiles/gauges/
+        run: python3 .github/workflows/update-tiles/check_gauges_update.py
+
+      # Only with new data: the scripts add to the published window (metadata.json)
+      - name: Restore published snapshots from gh-pages
+        if: steps.tiles.outputs.new == 'true' || steps.gauges.outputs.new == 'true'
         run: |
           git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
           git checkout origin/gh-pages -- data/tiles 2>/dev/null || echo "No previous tiles found"
 
       - name: Set up conda environment
+        if: steps.tiles.outputs.new == 'true' || steps.gauges.outputs.new == 'true'
         uses: conda-incubator/setup-miniconda@v3
         with:
           environment-file: environment.yml
@@ -71,30 +110,44 @@ jobs:
           auto-activate-base: false
 
       - name: Unzip shapefile
+        if: steps.tiles.outputs.new == 'true'
         run: unzip -o data/watershed_shp/Watershed_pfaf_id.shp.zip -d data/watershed_shp/
 
-      - name: Generate PMTiles
+      - name: Generate watershed PMTiles
+        if: steps.tiles.outputs.new == 'true'
         shell: bash -el {0}
-        env:
-          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
-          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
-          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
-          ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
         run: python .github/workflows/update-tiles/update_tiles.py
+
+      - name: Generate gauge PMTiles
+        if: steps.gauges.outputs.new == 'true'
+        shell: bash -el {0}
+        run: python .github/workflows/update-tiles/update_gauges.py
+
+      - name: Build demo pages
+        uses: ./.github/actions/build-demo-pages
 
       - name: Prepare deployment
         run: |
-          mkdir -p deploy/data/tiles deploy/assets deploy/css deploy/js
-          cp index.html                    deploy/index.html
-          cp css/styles.css                deploy/css/styles.css
-          cp assets/*                      deploy/assets/
-          cp js/*.js                       deploy/js/
-          cp data/tiles/*.pmtiles          deploy/data/tiles/
-          cp data/tiles/metadata.json      deploy/data/tiles/
-          cp -r data/persistent            deploy/data/
-          grep -v "^data/tiles/" .gitignore > deploy/.gitignore || true
+          mkdir -p deploy/assets deploy/css deploy/js deploy/data
+          cp index.html                 deploy/index.html
+          cp css/styles.css             deploy/css/styles.css
+          cp js/*.js                    deploy/js/
+          cp assets/*                   deploy/assets/
+          cp -r data/persistent         deploy/data/
+          if [ -d data/tiles ]; then cp -r data/tiles deploy/data/; fi
+          for demo in sub_pages/demo_*/; do
+            demo="${demo%/}"
+            name="$(basename "$demo")"
+            if [ -f "$demo/index.html" ]; then
+              mkdir -p "deploy/$name"
+              cp "$demo/index.html" "deploy/$name/index.html"
+            fi
+          done
+          # The repo's .gitignore without the rules for what is published here
+          grep -v -e "^data/tiles/" -e "^/demo_" .gitignore > deploy/.gitignore || true
           touch deploy/.nojekyll
 
+      # Adds to gh-pages without deleting: snapshots out of the window stay there
       - name: Deploy to gh-pages
         if: github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4
@@ -103,71 +156,3 @@ jobs:
           branch: gh-pages
           folder: deploy
           clean: false
-
-  # GloFAS gauge points (threspoints_*.txt in the GLOFAS folder next to Final_Alert).
-  # After update-tiles, so the two deploys to gh-pages never race, and whatever its result:
-  # "no new watershed snapshot" stops that job, not this one
-  update-gauges:
-    needs: update-tiles
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      pages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # Never fails: sets new=false (and the steps below are skipped) when the GLOFAS folder
-      # is unreachable or has no file the deployed gauge tiles lack
-      - name: Check for new gauge files
-        id: check
-        env:
-          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
-          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
-          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
-          GAUGES_TILES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/tiles/gauges/
-        run: python3 .github/workflows/update-tiles/check_gauges_update.py
-
-      - name: Restore previous gauge snapshots from gh-pages
-        if: steps.check.outputs.new == 'true'
-        run: |
-          git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
-          git checkout origin/gh-pages -- data/tiles/gauges 2>/dev/null || echo "No previous gauge tiles found"
-
-      - name: Set up conda environment
-        if: steps.check.outputs.new == 'true'
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          environment-file: environment.yml
-          activate-environment: myenv
-          miniforge-version: latest
-          auto-activate-base: false
-
-      - name: Generate gauge PMTiles
-        if: steps.check.outputs.new == 'true'
-        shell: bash -el {0}
-        env:
-          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
-          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
-          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
-        run: python .github/workflows/update-tiles/update_gauges.py
-
-      - name: Prepare deployment
-        if: steps.check.outputs.new == 'true'
-        run: |
-          mkdir -p deploy
-          cp data/tiles/gauges/*.pmtiles     deploy/
-          cp data/tiles/gauges/metadata.json deploy/
-
-      # Only data/tiles/gauges on gh-pages; clean drops the snapshots out of the window there
-      - name: Deploy to gh-pages
-        if: steps.check.outputs.new == 'true' && github.ref == 'refs/heads/main'
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          token: ${{ secrets.DEPLOY_PAT }}
-          branch: gh-pages
-          folder: deploy
-          target-folder: data/tiles/gauges
-          clean: true

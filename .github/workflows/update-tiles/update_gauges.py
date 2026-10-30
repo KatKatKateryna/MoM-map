@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Checks for new GloFAS gauge files (threspoints_YYYYMMDDHH.txt, one per day) in the GLOFAS
+Checks for new GloFAS gauge files (threspoints_YYYYMMDDHH.csv, one per day) in the GLOFAS
 folder next to MOM_CSV_URL's Final_Alert. Each new one becomes a point PMTiles snapshot in
 data/tiles/gauges/, in a rolling window of the newest RETENTION_DAYS files (listed in
 data/tiles/gauges/metadata.json, like data/tiles/metadata.json for the watersheds).
@@ -73,13 +73,6 @@ if not _gauges_url:
 GAUGES_BASE_URL: str = _gauges_url
 MINZOOM = 2
 MAXZOOM = 6
-# Missing values in the gauge files
-NO_DATA = -9999
-NUMERIC_COLUMNS = [
-    "Point No", "Lat", "Lon", "Upstream area", "GloFAS_2yr", "GloFAS_5yr", "GloFAS_20yr",
-    "Alert_level", "Days_until_peak", "pfaf_id",
-]
-INT_COLUMNS = ["Point No", "Alert_level", "Days_until_peak", "pfaf_id"]
 
 # Gauge files come one per day: ONLY_TIMESTAMP_PER_DAY does not apply
 print(f"[config] RETENTION_DAYS={RETENTION_DAYS}  OVERWRITE_EXISTING={OVERWRITE_EXISTING}")
@@ -191,20 +184,7 @@ def load_points(url):
 
 
 def process_points(df):
-    """Points from Lat / Lon with every column as a property; -9999 becomes no data."""
-    df.columns = df.columns.str.strip()
-    for col in NUMERIC_COLUMNS:
-        if col in df:
-            df[col] = pd.to_numeric(df[col], errors="coerce").mask(lambda s: s == NO_DATA)
-    for col in INT_COLUMNS:
-        if col in df:
-            df[col] = df[col].round().astype("Int64")
-    # max_EPS is "a/b/c": no data when all three are missing
-    if "max_EPS" in df:
-        df["max_EPS"] = df["max_EPS"].astype("string").where(
-            lambda s: ~s.fillna("").str.fullmatch(rf"{NO_DATA}(/{NO_DATA})*")
-        )
-    df = df.dropna(subset=["Lat", "Lon"])
+    """Points from Lat / Lon with every column as a property, values as in the file."""
     return gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df["Lon"], df["Lat"]), crs="EPSG:4326")
 
 
