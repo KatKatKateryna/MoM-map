@@ -82,3 +82,29 @@ def keep_latest_per_day(items, csv_of, label=""):
         seen_days.add(day)
         kept.append(item)
     return kept
+
+
+# ── GloFAS gauges (threspoints_YYYYMMDDHH.txt, one file per day) ──────────────
+# Listed next to the Final_Alert folder, in GLOFAS; kept RETENTION_DAYS files, newest first
+GAUGE_HREF_RE = re.compile(r'href="(threspoints_\d{10}\.txt)"')
+
+_GAUGE_TIMESTAMP_RE = re.compile(r"threspoints_(\d{4})(\d{2})(\d{2})(\d{2})")
+
+
+def gauges_url(csv_url):
+    """GLOFAS folder URL from MOM_CSV_URL (its /Final_Alert replaced), or None."""
+    if not csv_url or "/Final_Alert" not in csv_url:
+        return None
+    return csv_url.replace("/Final_Alert", "/GLOFAS", 1)
+
+
+def parse_gauge_timestamp(name):
+    """(YYYY, MM, DD, HH) tuple parsed from a threspoints filename, or None."""
+    m = _GAUGE_TIMESTAMP_RE.search(name or "")
+    return m.groups() if m else None
+
+
+def gauge_sort_key(name):
+    """Embedded YYYYMMDDHH as an int; unparseable names sort as oldest (-1)."""
+    parts = parse_gauge_timestamp(name)
+    return int("".join(parts)) if parts else -1

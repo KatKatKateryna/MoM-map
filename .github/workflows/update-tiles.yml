@@ -9,9 +9,7 @@ on:
     branches: 
       - main
     paths:
-      - 'update_tiles.py'
-      - 'tiles_listing.py'
-      - 'check_tiles_update.py'
+      - '.github/workflows/update-tiles/**'
       - 'environment.yml'
       - 'data/watershed_shp/**'
       - 'sub_pages/**'
@@ -21,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       retention_days:
-        description: 'Days of snapshots to retain (4/day). Leave default unless testing.'
+        description: 'Days of snapshots to retain (4/day; gauges 1/day). Leave default unless testing.'
         required: false
         type: number
         default: 7
@@ -31,7 +29,7 @@ on:
         type: boolean
         default: false
       only_timestamp_per_day:
-        description: 'Keep only each day''s latest snapshot instead of all 4/day'
+        description: 'Keep only each day''s latest snapshot instead of all 4/day (watersheds only)'
         required: false
         type: boolean
         default: true
@@ -57,7 +55,7 @@ jobs:
           OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
           ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
           TILES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/tiles/
-        run: python3 check_tiles_update.py
+        run: python3 .github/workflows/update-tiles/check_tiles_update.py
 
       - name: Restore previous snapshots from gh-pages
         run: |
@@ -82,7 +80,7 @@ jobs:
           RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
           OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
           ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || true }}
-        run: python update_tiles.py
+        run: python .github/workflows/update-tiles/update_tiles.py
 
       - name: Prepare deployment
         run: |
@@ -105,3 +103,71 @@ jobs:
           branch: gh-pages
           folder: deploy
           clean: false
+
+  # GloFAS gauge points (threspoints_*.txt in the GLOFAS folder next to Final_Alert).
+  # After update-tiles, so the two deploys to gh-pages never race, and whatever its result:
+  # "no new watershed snapshot" stops that job, not this one
+  update-gauges:
+    needs: update-tiles
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Never fails: sets new=false (and the steps below are skipped) when the GLOFAS folder
+      # is unreachable or has no file the deployed gauge tiles lack
+      - name: Check for new gauge files
+        id: check
+        env:
+          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
+          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
+          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
+          GAUGES_TILES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/tiles/gauges/
+        run: python3 .github/workflows/update-tiles/check_gauges_update.py
+
+      - name: Restore previous gauge snapshots from gh-pages
+        if: steps.check.outputs.new == 'true'
+        run: |
+          git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
+          git checkout origin/gh-pages -- data/tiles/gauges 2>/dev/null || echo "No previous gauge tiles found"
+
+      - name: Set up conda environment
+        if: steps.check.outputs.new == 'true'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: environment.yml
+          activate-environment: myenv
+          miniforge-version: latest
+          auto-activate-base: false
+
+      - name: Generate gauge PMTiles
+        if: steps.check.outputs.new == 'true'
+        shell: bash -el {0}
+        env:
+          MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
+          RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
+          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
+        run: python .github/workflows/update-tiles/update_gauges.py
+
+      - name: Prepare deployment
+        if: steps.check.outputs.new == 'true'
+        run: |
+          mkdir -p deploy
+          cp data/tiles/gauges/*.pmtiles     deploy/
+          cp data/tiles/gauges/metadata.json deploy/
+
+      # Only data/tiles/gauges on gh-pages; clean drops the snapshots out of the window there
+      - name: Deploy to gh-pages
+        if: steps.check.outputs.new == 'true' && github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.DEPLOY_PAT }}
+          branch: gh-pages
+          folder: deploy
+          target-folder: data/tiles/gauges
+          clean: true

@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 # gdal.VectorTranslate needs GDAL's own bundled proj.db, not pyproj's copy
 # (which setup.ps1's PROJ_LIB points to) — always override before importing PROJ-dependent modules. No-op on CI (conda sets its own).
 _venv_site_packages = (
-    Path(__file__).parent.resolve() / ".venv" / "Lib" / "site-packages"
+    Path(__file__).resolve().parents[3] / ".venv" / "Lib" / "site-packages"
 )
 for _proj_dir in (
     _venv_site_packages / "osgeo" / "data" / "proj",  # GDAL's own copy
@@ -44,7 +44,8 @@ from osgeo import gdal, ogr
 
 load_dotenv()
 
-REPO_DIR = Path(__file__).parent.resolve()
+# Repo root (this file is in .github/workflows/update-tiles/)
+REPO_DIR = Path(__file__).resolve().parents[3]
 SHP_PATH = REPO_DIR / "data" / "watershed_shp" / "Watershed_pfaf_id.shp"
 OUT_DIR = REPO_DIR / "data" / "tiles"
 GEOJSON_TMP = OUT_DIR / "watersheds.geojson"

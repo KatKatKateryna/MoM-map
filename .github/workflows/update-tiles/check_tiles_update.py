@@ -31,7 +31,8 @@ from tiles_listing import (
     timestamp_sort_key,
 )
 
-OUT_DIR = Path(__file__).parent.resolve() / "data" / "tiles"
+# Repo root (this file is in .github/workflows/update-tiles/)
+OUT_DIR = Path(__file__).resolve().parents[3] / "data" / "tiles"
 ATTEMPTS = 3
 TIMEOUT = 15  # seconds per attempt
 

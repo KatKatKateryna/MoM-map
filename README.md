@@ -18,7 +18,8 @@ Steps 1-3 are only needed if you want to generate tiles locally.
 2. Create .env file with MOM_CSV_URL=...
 3. Generate tiles: 
 ```powershell
-python update_tiles.py
+python .github/workflows/update-tiles/update_tiles.py
+python .github/workflows/update-tiles/update_gauges.py
 ```
 
 4. Serve the map:

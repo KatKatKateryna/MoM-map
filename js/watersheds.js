@@ -45,7 +45,8 @@ function addSnapshotLayers(entry) {
   map.addSource('ws', { type: 'vector', url: `pmtiles://data/tiles/${entry.file}` });
   // Only the colored fill goes under extra layers drawn above the watersheds
   // (extra-sources.js `above`); borders, highlight and the click layer stay on top
-  const fillBeforeId = map.getStyle().layers.find(l => l.metadata?.[ABOVE_WATERSHEDS])?.id;
+  const fillBeforeId = map.getStyle().layers.find(l => l.metadata?.[ABOVE_WATERSHEDS])?.id ?? topBeforeId();
+  const beforeId = topBeforeId();
 
   map.addLayer({
     id: 'ws-fill',
@@ -73,7 +74,7 @@ function addSnapshotLayers(entry) {
       'line-color': OUTLINE_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 0.8, 12, 1.5],
     },
-  });
+  }, beforeId);
   map.addLayer({
     id: 'ws-highlight',
     type: 'fill',
@@ -81,7 +82,7 @@ function addSnapshotLayers(entry) {
     'source-layer': 'watersheds',
     filter: ['==', 'pfaf_id', ''],
     paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.35 },
-  });
+  }, beforeId);
   map.addLayer({
     id: 'ws-highlight-outline',
     type: 'line',
@@ -89,7 +90,7 @@ function addSnapshotLayers(entry) {
     'source-layer': 'watersheds',
     filter: ['==', 'pfaf_id', ''],
     paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
-  });
+  }, beforeId);
   // Invisible top fill that takes hover and clicks, so whatever is drawn
   // between it and ws-fill does not get in the way
   map.addLayer({
@@ -98,7 +99,7 @@ function addSnapshotLayers(entry) {
     source: 'ws',
     'source-layer': 'watersheds',
     paint: { 'fill-color': '#000000', 'fill-opacity': 0 },
-  });
+  }, beforeId);
   // Snapshot swaps re-add the layers: keep them as the checkbox says
   applyAlertsVisibility();
 }
@@ -133,8 +134,7 @@ function initSnapshots(meta) {
 fetch('data/tiles/metadata.json')
   .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
   .then(meta => {
-    const run = () => initSnapshots(meta);
-    if (map.loaded()) run(); else map.once('load', run);
+    mapLoaded.then(() => initSnapshots(meta));
     updateLegend();
   })
   .catch(err => console.warn('Could not load snapshot metadata:', err));
@@ -154,7 +154,12 @@ function updateLegend() {
 // ── Click popup ───────────────────────────────────────────────────────────────
 const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', closeOnClick: false });
 
+// A click on a gauge point opens the gauge's popup instead (gauges.js)
+const gaugeAt = point => map.getLayer(GAUGES_LAYER) &&
+  map.queryRenderedFeatures(point, { layers: [GAUGES_LAYER] }).length > 0;
+
 map.on('click', 'ws-hit', (e) => {
+  if (gaugeAt(e.point)) return;
   const p = e.features[0].properties;
   const alert = p.alert || 'No data';
   const color = ALERT_COLOR[alert] ?? '#999';
@@ -200,7 +205,7 @@ popup.on('close', () => {
 
 map.on('click', (e) => {
   const features = map.queryRenderedFeatures(e.point, { layers: ['ws-hit'] });
-  if (!features.length) popup.remove();
+  if (!features.length && !gaugeAt(e.point)) popup.remove();
 });
 
 map.on('mouseenter', 'ws-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
