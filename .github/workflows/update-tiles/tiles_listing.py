@@ -3,6 +3,7 @@
 Standard library only, so the CI check for new CSVs (check_tiles_update.py) can use them
 before the conda environment is set up; update_tiles.py imports the same definitions.
 """
+
 import os
 import re
 
@@ -98,7 +99,10 @@ def gauges_url(csv_url):
     """GLOFAS folder URL from MOM_CSV_URL (its /Final_Alert replaced), or None."""
     if not csv_url or "/Final_Alert" not in csv_url:
         return None
-    return csv_url.replace("/Final_Alert", "/GLOFAS", 1)
+    last_path = (
+        csv_url.rsplit("/")[-1] or csv_url.rsplit("/")[-2]
+    )  # is [-1] was empty string after trailing /
+    return csv_url.replace(last_path, "GLOFAS")
 
 
 def parse_gauge_timestamp(name):
