@@ -116,8 +116,8 @@ def fetch_csv_listing():
     )
     names = set(raw_names)
     ordered = sorted(names, key=timestamp_sort_key, reverse=True)
-    print(f"  [listing] {len(ordered)} CSVs found on server:")
-    for n in ordered:
+    print(f"  [listing] {len(ordered)} CSVs found on server (printing first 8):")
+    for n in ordered[:8]:
         print(f"    {n}")
     return [{"name": n, "download_url": os.path.join(CSV_BASE_URL, n)} for n in ordered]
 
@@ -352,9 +352,9 @@ def run_once():
     if OVERWRITE_EXISTING:
         print(f"  OVERWRITE_EXISTING set — clearing {OUT_DIR} before rebuilding.")
         clear_existing_snapshots()
-
-    # Enforce the current MAX_SNAPSHOTS window up front, independent of network access.
-    reconcile_snapshots(load_snapshots())
+    else:
+        # Enforce the current MAX_SNAPSHOTS window up front, independent of network access.
+        reconcile_snapshots(load_snapshots())
 
     try:
         listing = fetch_csv_listing()
@@ -369,7 +369,11 @@ def run_once():
     print(f"  [run] raw listing: {len(listing)} CSV(s)")
 
     if ONLY_TIMESTAMP_PER_DAY:
-        listing = keep_latest_per_day(listing, lambda c: c["name"], label="/listing")
+        listing = keep_latest_per_day(
+            listing[: EFFECTIVE_MAX_SNAPSHOTS * 8],  # account for max 8 snapshots a day
+            lambda c: c["name"],
+            label="/listing",
+        )
         print(f"  [run] after per-day filter: {len(listing)} CSV(s)")
 
     window = listing[:EFFECTIVE_MAX_SNAPSHOTS]
