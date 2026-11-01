@@ -119,9 +119,7 @@ def fetch_csv_listing():
     print(f"  [listing] {len(ordered)} CSVs found on server:")
     for n in ordered:
         print(f"    {n}")
-    return [{"name": n, "download_url": CSV_BASE_URL + n} for n in ordered]
-
-
+    return [{"name": n, "download_url": os.path.join(CSV_BASE_URL, n)} for n in ordered]
 
 
 def parse_date_from_filename(name):
