@@ -264,13 +264,13 @@ async function addExtraSource(entry, i, section) {
   const metadatas = await Promise.all(archives.map(async a => await a.getMetadata() ?? {}));
   const title = name ?? metadatas[0].name ?? urls[0].split('/').pop().replace(/\.pmtiles$/, '');
   // Below the watershed layers, or with `above` over the watershed fill but under its
-  // borders (tagged, so watersheds.js keeps re-adding the fill underneath); either
+  // borders (tagged, so watersheds.js adds the snapshot fills underneath); either
   // way under the later EXTRA_SOURCES entries already added
   const later = map.getStyle().layers.find(l =>
     l.metadata?.[EXTRA_ORDER] > i && !!l.metadata[ABOVE_WATERSHEDS] === above)?.id;
   const beforeId = later ?? (above
-    ? (map.getLayer('ws-outline') ? 'ws-outline' : topBeforeId())
-    : (map.getLayer('ws-fill') ? 'ws-fill' : topBeforeId()));
+    ? (firstWsLayer('top') ?? topBeforeId())
+    : (firstWsLayer('fill') ?? topBeforeId()));
   const tag = {
     layout: { visibility: visible ? 'visible' : 'none' },
     metadata: { [EXTRA_ORDER]: i, ...(above && { [ABOVE_WATERSHEDS]: true }) },
