@@ -68,14 +68,18 @@ from tiles_listing import (  # noqa: E402  stdlib only, shared with check_gauges
 
 _gauges_url = gauges_url(os.getenv("MOM_CSV_URL"))
 if not _gauges_url:
-    print("ERROR: MOM_CSV_URL is not set or has no /Final_Alert to replace with /GLOFAS.")
+    print(
+        "ERROR: MOM_CSV_URL is not set or has no /Final_Alert to replace with /GLOFAS."
+    )
     sys.exit(1)
 GAUGES_BASE_URL: str = _gauges_url
 MINZOOM = 2
 MAXZOOM = 6
 
 # Gauge files come one per day: ONLY_TIMESTAMP_PER_DAY does not apply
-print(f"[config] RETENTION_DAYS={RETENTION_DAYS}  OVERWRITE_EXISTING={OVERWRITE_EXISTING}")
+print(
+    f"[config] RETENTION_DAYS={RETENTION_DAYS}  OVERWRITE_EXISTING={OVERWRITE_EXISTING}"
+)
 
 # ── File discovery ────────────────────────────────────────────────────────────
 
@@ -94,17 +98,23 @@ def fetch_listing():
         except Exception as e:
             if attempt < max_retries:
                 wait_time = retry_delay * attempt
-                print(f"  Listing attempt {attempt} failed: {e}. Retrying in {wait_time}s...")
+                print(
+                    f"  Listing attempt {attempt} failed: {e}. Retrying in {wait_time}s..."
+                )
                 time.sleep(wait_time)
             else:
                 print(f"  Listing failed after {max_retries} attempts: {e}")
                 raise
 
-    ordered = sorted(set(GAUGE_HREF_RE.findall(r.text)), key=gauge_sort_key, reverse=True)
+    ordered = sorted(
+        set(GAUGE_HREF_RE.findall(r.text)), key=gauge_sort_key, reverse=True
+    )
     print(f"  [listing] {len(ordered)} gauge file(s) found on server:")
     for n in ordered:
         print(f"    {n}")
-    return [{"name": n, "download_url": GAUGES_BASE_URL + n} for n in ordered]
+    return [
+        {"name": n, "download_url": os.path.join(GAUGES_BASE_URL, n)} for n in ordered
+    ]
 
 
 def parse_date_from_filename(name):
@@ -141,21 +151,28 @@ def clear_existing_snapshots():
 
 def reconcile_snapshots(snapshots):
     """Re-sort by timestamp, dedup by file name, drop entries with missing tiles, keep the
-    newest RETENTION_DAYS, reindex, write metadata.json and delete orphaned *.pmtiles."""
-    ordered = sorted(snapshots, key=lambda s: gauge_sort_key(s.get("csv")), reverse=True)
+    newest RETENTION_DAYS, reindex, write metadata.json and delete orphaned *.pmtiles.
+    """
+    ordered = sorted(
+        snapshots, key=lambda s: gauge_sort_key(s.get("csv")), reverse=True
+    )
     seen, combined = set(), []
     for snap in ordered:
         name = snap.get("csv")
         if name in seen or not (OUT_DIR / snap.get("file", "")).exists():
-            print(f"  [reconcile] dropping {snap.get('file')} (duplicate or missing file)")
+            print(
+                f"  [reconcile] dropping {snap.get('file')} (duplicate or missing file)"
+            )
             continue
         seen.add(name)
         combined.append(snap)
 
     kept = combined[:RETENTION_DAYS]
     if len(combined) > RETENTION_DAYS:
-        print(f"  [reconcile] trimmed to RETENTION_DAYS={RETENTION_DAYS}: dropped "
-              f"{[s.get('csv') for s in combined[RETENTION_DAYS:]]}")
+        print(
+            f"  [reconcile] trimmed to RETENTION_DAYS={RETENTION_DAYS}: dropped "
+            f"{[s.get('csv') for s in combined[RETENTION_DAYS:]]}"
+        )
     for i, snap in enumerate(kept):
         snap["index"] = i
 
@@ -185,7 +202,9 @@ def load_points(url):
 
 def process_points(df):
     """Points from Lat / Lon with every column as a property, values as in the file."""
-    return gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df["Lon"], df["Lat"]), crs="EPSG:4326")
+    return gpd.GeoDataFrame(
+        df, geometry=gpd.points_from_xy(df["Lon"], df["Lat"]), crs="EPSG:4326"
+    )
 
 
 # ── PMTiles generation ────────────────────────────────────────────────────────
@@ -193,7 +212,9 @@ def process_points(df):
 
 def build_pmtiles(gdf, name):
     if ogr.GetDriverByName("PMTiles") is None:
-        print("ERROR: GDAL PMTiles driver not available. Ensure GDAL >= 3.7 is installed.")
+        print(
+            "ERROR: GDAL PMTiles driver not available. Ensure GDAL >= 3.7 is installed."
+        )
         sys.exit(1)
 
     print(f"  Writing GeoJSON ({len(gdf)} points)...")
@@ -210,7 +231,9 @@ def build_pmtiles(gdf, name):
     )
     result = gdal.VectorTranslate(str(tmp_out), str(GEOJSON_TMP), options=options)
     if result is None:
-        raise RuntimeError("gdal.VectorTranslate failed — check GDAL error output above")
+        raise RuntimeError(
+            "gdal.VectorTranslate failed — check GDAL error output above"
+        )
     result = None  # flush/close
 
     Path(tmp_out).replace(tile_out)
@@ -230,7 +253,9 @@ def build_pmtiles(gdf, name):
 
 
 def run_once():
-    print(f"[{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}] Checking for new gauge files...")
+    print(
+        f"[{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}] Checking for new gauge files..."
+    )
 
     if OVERWRITE_EXISTING:
         print(f"  OVERWRITE_EXISTING set — clearing {OUT_DIR} before rebuilding.")
@@ -254,7 +279,9 @@ def run_once():
         print(f'  No update (latest: {listing[0]["name"]}); nothing to do.')
         return
 
-    print(f"  [run] {len(candidates)} file(s) to process: {[c['name'] for c in candidates]}")
+    print(
+        f"  [run] {len(candidates)} file(s) to process: {[c['name'] for c in candidates]}"
+    )
     # Newest → oldest, so an interrupted backfill has already secured the latest data
     for info in candidates:
         print(f'  New gauge file: {info["name"]}')
