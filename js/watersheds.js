@@ -11,7 +11,7 @@ function formatUpdatedAt(s) {
 
 // ── Snapshots (pmtiles source swap driven by the header dropdown) ─────────────
 const OUTLINE_COLOR = [
-  'match', ['get', 'alert'],
+  'match', ['get', 'Alert'],
   'Warning',     '#e65100',
   'Watch',       '#f57f17',
   'Advisory',    '#f9a825',
@@ -42,7 +42,7 @@ function addSnapshotLayers(entry) {
   }
   if (map.getSource('ws')) map.removeSource('ws');
 
-  map.addSource('ws', { type: 'vector', url: `pmtiles://data/tiles/${entry.file}` });
+  map.addSource('ws', { type: 'vector', url: `pmtiles://${entry.url}` });
   // Only the colored fill goes under extra layers drawn above the watersheds
   // (extra-sources.js `above`); borders, highlight and the click layer stay on top
   const fillBeforeId = map.getStyle().layers.find(l => l.metadata?.[ABOVE_WATERSHEDS])?.id ?? topBeforeId();
@@ -55,7 +55,7 @@ function addSnapshotLayers(entry) {
     'source-layer': 'watersheds',
     paint: {
       'fill-color': [
-        'match', ['get', 'alert'],
+        'match', ['get', 'Alert'],
         'Warning',     '#f57c00',
         'Watch',       '#fbc02d',
         'Advisory',    '#f0f250',
@@ -131,9 +131,15 @@ function initSnapshots(meta) {
   });
 }
 
-fetch('data/tiles/metadata.json')
+// Snapshots live in the MoM_Alerts repo; raw.githubusercontent.com serves them
+// with CORS and range requests, which pmtiles needs
+const TILES_BASE_URL = 'https://raw.githubusercontent.com/Blu-H/MoM_Alerts/main/Alerts/tiles/';
+
+fetch(new URL('metadata.json', TILES_BASE_URL))
   .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
   .then(meta => {
+    // metadata.json lists files relative to its own folder: turn them into full URLs
+    for (const s of meta.snapshots || []) s.url = new URL(s.file, TILES_BASE_URL).href;
     mapLoaded.then(() => initSnapshots(meta));
     updateLegend();
   })
@@ -161,7 +167,7 @@ const gaugeAt = point => map.getLayer(GAUGES_LAYER) &&
 map.on('click', 'ws-hit', (e) => {
   if (gaugeAt(e.point)) return;
   const p = e.features[0].properties;
-  const alert = p.alert || 'No data';
+  const alert = p.Alert || 'No data';
   const color = ALERT_COLOR[alert] ?? '#999';
 
   const isShown = ([, v]) => v != null && v !== 'null' && v !== 'None' && v !== '';
@@ -169,16 +175,15 @@ map.on('click', 'ws-hit', (e) => {
   const watershedRows = [
     ['Watershed ID',  p.pfaf_id],
     ['Name',          p.name],
-    ['Regions',       p.regions],
-    ['Watershed area', p.area_km2 != null ? `${Math.round(p.area_km2).toLocaleString()} km²` : null],
-    ['Riverine risk', p.riverine_risk != null ? `${p.riverine_risk} / 100` : null],
-    ['Coastal risk',  p.coastal_risk != null ? `${p.coastal_risk} / 100` : null],
+    ['Regions',       p.Admin1_names],
+    ['Watershed area', p.area_km2_x != null ? `${Math.round(p.area_km2_x).toLocaleString()} km²` : null],
+    ['Riverine risk', p.rfr_score_x != null ? `${p.rfr_score_x} / 100` : null],
+    ['Coastal risk',  p.cfr_score_x != null ? `${p.cfr_score_x} / 100` : null],
   ].filter(isShown);
 
   const snapshotRows = [
-    ['Status',        p.status],
-    ['Days to peak',  p.days_until_peak != null ? p.days_until_peak : null],
-    ['Hazard score',  p.hazard_score != null ? `${p.hazard_score} / 100` : null],
+    ['Status',        p.Status],
+    ['Hazard score',  p.Hazard_Score != null ? `${p.Hazard_Score} / 100` : null],
   ].filter(isShown);
 
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

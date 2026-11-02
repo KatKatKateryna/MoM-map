@@ -257,11 +257,6 @@ def process_csv(df):
                 "status": base.get("Status") if pd.notna(base.get("Status")) else None,
                 "name": countries or None,
                 "regions": regions or None,
-                "days_until_peak": (
-                    int(base["Days_until_peak"])
-                    if pd.notna(base.get("Days_until_peak"))
-                    else None
-                ),
                 "hazard_score": (
                     round(float(hazard_score), 1)
                     if pd.notna(hazard_score) and hazard_score >= -1000
