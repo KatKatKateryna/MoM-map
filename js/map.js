@@ -31,9 +31,11 @@ const NO_DATA_COLOR = '#e0e0e0';
 // Layer metadata key of extra layers drawn above the watershed layers
 const ABOVE_WATERSHEDS = 'mom:above-watersheds';
 
-// GloFAS gauge points (gauges.js, SHOW_GAUGES) stay on top: layers added later go under them
+// GloFAS gauge points (gauges.js, SHOW_GAUGES) stay on top: layers added later go under them.
+// One layer per gauge snapshot, ids `gauges-${index}`, tagged with GAUGES_KIND
 const GAUGES_LAYER = 'gauges';
-const topBeforeId = () => map.getLayer(GAUGES_LAYER) ? GAUGES_LAYER : undefined;
+const GAUGES_KIND = 'mom:gauges';
+const topBeforeId = () => map.getStyle().layers.find(l => l.metadata?.[GAUGES_KIND])?.id;
 
 // ── PMTiles protocol ──────────────────────────────────────────────────────────
 const protocol = new pmtiles.Protocol();

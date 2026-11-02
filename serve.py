@@ -41,6 +41,11 @@ class RangeHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(chunk)
                 remaining -= len(chunk)
 
+    # Revalidate every file, so edited js/css are never mixed with stale cached copies
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
     def log_message(self, fmt, *args):
         pass  # suppress per-request noise
 

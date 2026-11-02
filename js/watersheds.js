@@ -38,6 +38,11 @@ const alertsToggle = document.getElementById('alerts-toggle');
 
 let currentSource = null;
 let pendingSource = null;
+// updated_at of the snapshot picked in the dropdown, announced with SNAPSHOT_PICK_EVENT on
+// document; gauges.js shows the gauges of that date. An event, not a call into gauges.js,
+// since the first pick can come before that script has run
+let pickedSnapshotTime = null;
+const SNAPSHOT_PICK_EVENT = 'mom:snapshot-pick';
 const snapshotUrls = {}; // source -> pmtiles url
 const sourceReady = {};  // source -> promise, resolved once the source has its url's tile list
 
@@ -178,6 +183,8 @@ function flashOutline(source) {
 
 function selectSnapshot(entry) {
   const source = `ws-${entry.index}`;
+  pickedSnapshotTime = entry.updated_at;
+  document.dispatchEvent(new Event(SNAPSHOT_PICK_EVENT));
   // A newer pick replaces a snapshot that is still loading
   if (pendingSource && pendingSource !== source) setSnapshotVisibility(pendingSource, 'none');
   pendingSource = source === currentSource ? null : source;
@@ -269,8 +276,8 @@ function updateLegend() {
 const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', closeOnClick: false });
 
 // A click on a gauge point opens the gauge's popup instead (gauges.js)
-const gaugeAt = point => map.getLayer(GAUGES_LAYER) &&
-  map.queryRenderedFeatures(point, { layers: [GAUGES_LAYER] }).length > 0;
+const gaugeAt = point => currentGaugeLayer &&
+  map.queryRenderedFeatures(point, { layers: [currentGaugeLayer] }).length > 0;
 
 function onWatershedClick(e) {
   if (gaugeAt(e.point)) return;

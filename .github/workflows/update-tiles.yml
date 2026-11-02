@@ -1,6 +1,6 @@
 # Publishes the whole map to the gh-pages branch in one deploy (one GitHub Pages build):
-# the app and demo pages, plus new watershed snapshots (Final_Attributes CSVs) and GloFAS
-# gauge snapshots (threspoints CSVs) when the MoM server has any. Runs daily and on changes.
+# the app and demo pages, plus new GloFAS gauge snapshots (threspoints CSVs) when the MoM
+# server has any. Watershed snapshots are loaded from the MoM_Alerts repo. Runs daily and on changes.
 
 name: Update map
 
@@ -17,7 +17,6 @@ on:
       - 'js/**'
       - 'sub_pages/**'
       - 'data/persistent/**'
-      - 'data/watershed_shp/**'
       - 'environment.yml'
       - '.github/actions/**'
       - '.github/workflows/update-tiles.yml'
@@ -28,17 +27,12 @@ on:
   workflow_dispatch:
     inputs:
       retention_days:
-        description: 'Days of snapshots to retain (4/day; gauges 1/day; at most 30 tiles each). Leave default unless testing.'
+        description: 'Days of snapshots to retain (1/day; at most 30 tiles). Leave default unless testing.'
         required: false
         type: number
         default: 7
       overwrite_existing:
         description: 'Clear all existing tiles/metadata first, then rebuild the window from scratch'
-        required: false
-        type: boolean
-        default: false
-      only_timestamp_per_day:
-        description: 'Keep only each day''s latest snapshot instead of all 4/day (watersheds only)'
         required: false
         type: boolean
         default: false
@@ -60,7 +54,6 @@ jobs:
       MOM_CSV_URL: ${{ secrets.MOM_CSV_URL }}
       RETENTION_DAYS: ${{ inputs.retention_days || 30 }}
       OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || false }}
-      ONLY_TIMESTAMP_PER_DAY: ${{ inputs.only_timestamp_per_day || false }}
       PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
 
     steps:
@@ -72,20 +65,6 @@ jobs:
         with:
           deploy-token: ${{ secrets.DEPLOY_PAT }}
 
-      # In seconds, against the deployed metadata: is there a new watershed snapshot?
-      # check_tiles_update.py exits 1 when the server is unreachable or there is nothing new,
-      # which here only skips the watershed steps
-      - name: Check for new watershed CSVs
-        id: tiles
-        env:
-          TILES_URL: ${{ env.PAGES_URL }}/data/tiles/
-        run: |
-          if python3 .github/workflows/update-tiles/check_tiles_update.py; then
-            echo "new=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "new=false" >> "$GITHUB_OUTPUT"
-          fi
-
       # Never fails; sets new=true or new=false
       - name: Check for new gauge files
         id: gauges
@@ -93,30 +72,21 @@ jobs:
           GAUGES_TILES_URL: ${{ env.PAGES_URL }}/data/tiles/gauges/
         run: python3 .github/workflows/update-tiles/check_gauges_update.py
 
-      # Only with new data: the scripts add to the published window (metadata.json)
+      # Only with new data: the script adds to the published window (metadata.json)
       - name: Restore published snapshots from gh-pages
-        if: steps.tiles.outputs.new == 'true' || steps.gauges.outputs.new == 'true'
+        if: steps.gauges.outputs.new == 'true'
         run: |
           git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
-          git checkout origin/gh-pages -- data/tiles 2>/dev/null || echo "No previous tiles found"
+          git checkout origin/gh-pages -- data/tiles/gauges 2>/dev/null || echo "No previous tiles found"
 
       - name: Set up conda environment
-        if: steps.tiles.outputs.new == 'true' || steps.gauges.outputs.new == 'true'
+        if: steps.gauges.outputs.new == 'true'
         uses: conda-incubator/setup-miniconda@v3
         with:
           environment-file: environment.yml
           activate-environment: myenv
           miniforge-version: latest
           auto-activate-base: false
-
-      - name: Unzip shapefile
-        if: steps.tiles.outputs.new == 'true'
-        run: unzip -o data/watershed_shp/Watershed_pfaf_id.shp.zip -d data/watershed_shp/
-
-      - name: Generate watershed PMTiles
-        if: steps.tiles.outputs.new == 'true'
-        shell: bash -el {0}
-        run: python .github/workflows/update-tiles/update_tiles.py
 
       - name: Generate gauge PMTiles
         if: steps.gauges.outputs.new == 'true'
@@ -134,23 +104,9 @@ jobs:
           cp js/*.js                    deploy/js/
           cp assets/*                   deploy/assets/
           cp -r data/persistent         deploy/data/
-          if [ -d data/tiles ]; then
-            # Publish only the tiles in each window (metadata.json, at most 30 per layer):
-            # a run that updates one layer still restores the other's orphans from gh-pages
-            python3 - <<'EOF'
-          import json
-          from pathlib import Path
-          for d in (Path("data/tiles"), Path("data/tiles/gauges")):
-              meta = d / "metadata.json"
-              if not meta.exists():
-                  continue
-              keep = {s.get("file") for s in json.loads(meta.read_text()).get("snapshots", [])}
-              for f in d.glob("*.pmtiles"):
-                  if f.name not in keep:
-                      print(f"Not publishing {f}")
-                      f.unlink()
-          EOF
-            cp -r data/tiles deploy/data/
+          if [ -d data/tiles/gauges ]; then
+            mkdir -p deploy/data/tiles
+            cp -r data/tiles/gauges deploy/data/tiles/
           fi
           for demo in sub_pages/demo_*/; do
             demo="${demo%/}"
@@ -164,8 +120,8 @@ jobs:
           grep -v -e "^data/tiles/" -e "^/demo_" .gitignore > deploy/.gitignore || true
           touch deploy/.nojekyll
 
-      # With new data, deploy holds the full tile windows, so clean removes the tiles that
-      # left them from gh-pages; without, deploy has no tiles and gh-pages keeps its own
+      # With new data, deploy holds the full gauge window, so clean removes the tiles that
+      # left it (and the old watershed tiles) from gh-pages; without, gh-pages keeps its own
       - name: Deploy to gh-pages
         if: github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4
@@ -173,4 +129,4 @@ jobs:
           token: ${{ secrets.DEPLOY_PAT }}
           branch: gh-pages
           folder: deploy
-          clean: ${{ steps.tiles.outputs.new == 'true' || steps.gauges.outputs.new == 'true' }}
+          clean: ${{ steps.gauges.outputs.new == 'true' }}

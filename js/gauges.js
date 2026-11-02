@@ -1,7 +1,8 @@
 // ── GloFAS gauges (point pmtiles in data/tiles/gauges, update_gauges.py) ──────
 // Only with SHOW_GAUGES. One snapshot per day, listed in data/tiles/gauges/metadata.json;
-// the map shows the newest one. Drawn on top of every layer, with its own legend toggle
-// above the Alerts one.
+// the map shows the one of the watershed snapshot picked in the header dropdown
+// (SNAPSHOT_PICK_EVENT). Drawn on top of every layer, with its own legend toggle above the
+// Alerts one.
 const GAUGES_DIR = 'data/tiles/gauges/';
 // Alert_level: the highest GloFAS return period threshold exceeded
 const GAUGE_LEVELS = [
@@ -15,37 +16,83 @@ const GAUGE_FIELDS = ['Alert_level', 'Days_until_peak', 'GloFAS_2yr', 'GloFAS_5y
   'pfaf_id', 'Lat', 'Lon', 'Upstream area', 'Forecast Date', 'max_EPS',
   'Point No', 'Station', 'Basin', 'Country'];
 
-function initGauges(snapshots) {
-  // index 0 = most recent
-  const snap = snapshots.slice().sort((a, b) => a.index - b.index)[0];
-  const section = document.createElement('section');
-  section.className = 'side-panel__section';
-  section.innerHTML = `
-    <label class="side-panel__heading legend-toggle">
-      <input type="checkbox" checked>
-      <span>GloFAS gauges</span>
-    </label>
-    <p class="legend-description">River gauge forecast of ${formatUpdatedAt(snap.updated_at)}.</p>
-    <div class="legend-body">${GAUGE_LEVELS.map(([, color, label]) =>
-      `<div class="leg"><div class="swatch" style="background:${color}"></div>${label}</div>`).join('')}</div>`;
-  document.getElementById('alerts-section').before(section);
-  const toggle = section.querySelector('input');
-  const visibility = () => toggle.checked ? 'visible' : 'none';
+// Like the watershed snapshots, every gauge snapshot gets its source and layer set up
+// front, ids `gauges-${index}`, and a switch loads the new one transparent before the
+// swap, so the points do not blink
+let gaugeSnapshots = []; // index 0 = most recent
+let currentGaugeLayer = null;
+let pendingGaugeLayer = null;
+let gaugeToggle = null;
+let gaugeDescription = null;
 
-  toggle.addEventListener('change', () => {
-    if (!toggle.checked) popup.remove();
-    if (map.getLayer(GAUGES_LAYER)) map.setLayoutProperty(GAUGES_LAYER, 'visibility', visibility());
-    section.classList.toggle('legend-off', !toggle.checked);
+const gaugeVisibility = () => gaugeToggle.checked ? 'visible' : 'none';
+
+// The newest gauge snapshot not after `time`: the newest one when `time` is past them all,
+// the oldest one when it is before them all. updated_at ('YYYY-MM-DD HH:MM UTC') sorts as text
+function gaugeSnapshotFor(time) {
+  return gaugeSnapshots.find(s => time == null || s.updated_at <= time) ?? gaugeSnapshots.at(-1);
+}
+
+function setGaugesShown(layer, shown) {
+  map.setPaintProperty(layer, 'circle-opacity', shown ? 1 : 0);
+  map.setPaintProperty(layer, 'circle-stroke-opacity', shown ? 1 : 0);
+}
+
+// Every pick in the header dropdown (watersheds.js selectSnapshot); picks before
+// initGauges are not lost, it starts with pickedSnapshotTime's gauges
+document.addEventListener(SNAPSHOT_PICK_EVENT, () => { if (gaugeSnapshots.length) showGauges(); });
+
+function showGauges() {
+  const snap = gaugeSnapshotFor(pickedSnapshotTime);
+  const layer = `${GAUGES_LAYER}-${snap.index}`;
+  // A newer pick replaces a snapshot that is still loading
+  if (pendingGaugeLayer && pendingGaugeLayer !== layer) {
+    map.setLayoutProperty(pendingGaugeLayer, 'visibility', 'none');
+  }
+  pendingGaugeLayer = layer === currentGaugeLayer ? null : layer;
+  if (!pendingGaugeLayer) return;
+
+  const swap = () => {
+    if (pendingGaugeLayer !== layer) return map.off('idle', swap);
+    if (gaugeToggle.checked && !map.isSourceLoaded(layer)) return;
+    map.off('idle', swap);
+
+    // Show the new snapshot and hide the old one in the same frame
+    if (currentGaugeLayer) popup.remove();
+    const oldLayer = currentGaugeLayer;
+    currentGaugeLayer = layer;
+    pendingGaugeLayer = null;
+    setGaugesShown(layer, true);
+    map.setLayoutProperty(layer, 'visibility', gaugeVisibility());
+    gaugeDescription.textContent = `River gauge forecast of ${formatUpdatedAt(snap.updated_at)}.`;
+    if (oldLayer) {
+      setGaugesShown(oldLayer, false);
+      map.setLayoutProperty(oldLayer, 'visibility', 'none');
+    }
+  };
+  // Drawn while still transparent, since tiles only load for visible layers; with the
+  // gauges toggled off there is nothing to load, so it swaps at once
+  loadSource(layer).then(() => {
+    if (pendingGaugeLayer !== layer) return;
+    if (!gaugeToggle.checked) return swap();
+    map.setLayoutProperty(layer, 'visibility', 'visible');
+    map.on('idle', swap);
   });
+}
 
-  map.addSource(GAUGES_LAYER, { type: 'vector', url: `pmtiles://${GAUGES_DIR}${snap.file}` });
+function addGaugeLayer(snap) {
+  const id = `${GAUGES_LAYER}-${snap.index}`;
+  // No url yet, so nothing is fetched until the snapshot is picked (loadSource)
+  map.addSource(id, { type: 'vector' });
+  snapshotUrls[id] = `pmtiles://${GAUGES_DIR}${snap.file}`;
   map.addLayer({
-    id: GAUGES_LAYER,
+    id,
     type: 'circle',
-    source: GAUGES_LAYER,
+    source: id,
     'source-layer': 'gauges',
+    metadata: { [GAUGES_KIND]: true },
     layout: {
-      visibility: visibility(),
+      visibility: 'none',
       // Higher alerts drawn over lower ones
       'circle-sort-key': ['coalesce', ['to-number', ['get', 'Alert_level']], -1],
     },
@@ -55,11 +102,46 @@ function initGauges(snapshots) {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 4, 6, 6, 10, 9],
       'circle-stroke-color': '#ffffff',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 2, 1, 6, 1.5, 10, 2],
+      // Transparent until shown, without transitions (as WS_SHOWN_PAINT)
+      'circle-opacity': 0,
+      'circle-opacity-transition': { duration: 0 },
+      'circle-stroke-opacity': 0,
+      'circle-stroke-opacity-transition': { duration: 0 },
     },
   });
+  // Only the snapshot on screen takes clicks, not one still loading transparent
+  map.on('click', id, e => { if (id === currentGaugeLayer) onGaugeClick(e); });
+  map.on('mouseenter', id, () => { if (id === currentGaugeLayer) map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
 }
 
-map.on('click', GAUGES_LAYER, (e) => {
+function initGauges(snapshots) {
+  gaugeSnapshots = snapshots.slice().sort((a, b) => a.index - b.index);
+  const section = document.createElement('section');
+  section.className = 'side-panel__section';
+  section.innerHTML = `
+    <label class="side-panel__heading legend-toggle">
+      <input type="checkbox" checked>
+      <span>GloFAS gauges</span>
+    </label>
+    <p class="legend-description"></p>
+    <div class="legend-body">${GAUGE_LEVELS.map(([, color, label]) =>
+      `<div class="leg"><div class="swatch" style="background:${color}"></div>${label}</div>`).join('')}</div>`;
+  document.getElementById('alerts-section').before(section);
+  gaugeToggle = section.querySelector('input');
+  gaugeDescription = section.querySelector('.legend-description');
+
+  gaugeToggle.addEventListener('change', () => {
+    if (!gaugeToggle.checked) popup.remove();
+    if (currentGaugeLayer) map.setLayoutProperty(currentGaugeLayer, 'visibility', gaugeVisibility());
+    section.classList.toggle('legend-off', !gaugeToggle.checked);
+  });
+
+  for (const snap of gaugeSnapshots) addGaugeLayer(snap);
+  showGauges();
+}
+
+function onGaugeClick(e) {
   const p = e.features[0].properties;
   const level = GAUGE_LEVELS.find(([l]) => l === Number(p.Alert_level));
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -78,9 +160,7 @@ map.on('click', GAUGES_LAYER, (e) => {
     ${level ? `<div><span class="pop-badge" style="background:${level[1]}">${esc(level[2])}</span></div>` : ''}
     ${rows}
   `).addTo(map);
-});
-map.on('mouseenter', GAUGES_LAYER, () => { map.getCanvas().style.cursor = 'pointer'; });
-map.on('mouseleave', GAUGES_LAYER, () => { map.getCanvas().style.cursor = ''; });
+}
 
 if (SHOW_GAUGES) {
   fetch(`${GAUGES_DIR}metadata.json`)
