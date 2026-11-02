@@ -18,16 +18,58 @@ const OUTLINE_COLOR = [
   'Information', '#2e7d32',
   '#bdbdbd'
 ];
+const OUTLINE_WIDTH = ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 0.8, 12, 1.5];
+// A shown snapshot's borders flash white and wider, then fade to normal within FLASH_MS
+const FLASH_WIDTH = ['interpolate', ['linear'], ['zoom'], 4, 0.75, 8, 1.5, 12, 2.5];
+const FLASH_OPACITY = 0.25;
+const FLASH_MS = 1000;
 
-const WS_LAYERS = ['ws-hit', 'ws-highlight-outline', 'ws-highlight', 'ws-outline', 'ws-fill'];
+// Every snapshot gets its source and layer set up front, ids `ws-${index}-${name}`:
+// switching then only changes visibility and paint, since adding layers would make
+// MapLibre re-parse tiles and blink. A source gets its url, and loads, on its first pick
+const WS_LAYERS = ['hit', 'highlight-outline', 'highlight', 'flash', 'outline', 'fill'];
+// Layers are transparent until their snapshot is shown. Without transitions: the
+// default 300ms fade-in would show neither snapshot while the old one is hidden
+const WS_SHOWN_PAINT = { fill: ['fill-opacity', 0.55], outline: ['line-opacity', 1] };
+// Tags watershed layers 'fill' or 'top', so extra layers can go below or between them
+const WS_KIND = 'mom:ws';
+const firstWsLayer = kind => map.getStyle().layers.find(l => l.metadata?.[WS_KIND] === kind)?.id;
 const alertsToggle = document.getElementById('alerts-toggle');
+
+let currentSource = null;
+let pendingSource = null;
+const snapshotUrls = {}; // source -> pmtiles url
+const sourceReady = {};  // source -> promise, resolved once the source has its url's tile list
+
+// Gives a source its url on the snapshot's first pick
+function loadSource(source) {
+  return sourceReady[source] ??= new Promise(resolve => {
+    const onData = e => {
+      if (e.sourceId !== source || e.sourceDataType !== 'metadata') return;
+      map.off('sourcedata', onData);
+      resolve();
+    };
+    map.on('sourcedata', onData);
+    map.getSource(source).setUrl(snapshotUrls[source]);
+  });
+}
+
+// Id of a layer of the snapshot on screen, e.g. wsLayer('fill')
+const wsLayer = name => currentSource && `${currentSource}-${name}`;
+
+function setSnapshotVisibility(source, visibility) {
+  for (const name of WS_LAYERS) map.setLayoutProperty(`${source}-${name}`, 'visibility', visibility);
+}
+
+function setSnapshotShown(source, shown) {
+  for (const [name, [prop, value]] of Object.entries(WS_SHOWN_PAINT)) {
+    map.setPaintProperty(`${source}-${name}`, prop, shown ? value : 0);
+  }
+}
 
 // The Alerts checkbox shows or hides every watershed layer, the click layer too
 function applyAlertsVisibility() {
-  const visibility = alertsToggle.checked ? 'visible' : 'none';
-  for (const id of WS_LAYERS) {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
-  }
+  if (currentSource) setSnapshotVisibility(currentSource, alertsToggle.checked ? 'visible' : 'none');
   document.getElementById('alerts-section').classList.toggle('legend-off', !alertsToggle.checked);
 }
 
@@ -36,22 +78,20 @@ alertsToggle.addEventListener('change', () => {
   applyAlertsVisibility();
 });
 
-function addSnapshotLayers(entry) {
-  for (const id of WS_LAYERS) {
-    if (map.getLayer(id)) map.removeLayer(id);
-  }
-  if (map.getSource('ws')) map.removeSource('ws');
-
-  map.addSource('ws', { type: 'vector', url: `pmtiles://${entry.url}` });
+function addSnapshotLayers(source) {
   // Only the colored fill goes under extra layers drawn above the watersheds
   // (extra-sources.js `above`); borders, highlight and the click layer stay on top
-  const fillBeforeId = map.getStyle().layers.find(l => l.metadata?.[ABOVE_WATERSHEDS])?.id ?? topBeforeId();
+  const fillBeforeId = map.getStyle().layers.find(l => l.metadata?.[ABOVE_WATERSHEDS])?.id
+    ?? firstWsLayer('top') ?? topBeforeId();
   const beforeId = topBeforeId();
+  const fill = { layout: { visibility: 'none' }, metadata: { [WS_KIND]: 'fill' } };
+  const top = { layout: { visibility: 'none' }, metadata: { [WS_KIND]: 'top' } };
 
   map.addLayer({
-    id: 'ws-fill',
+    ...fill,
+    id: `${source}-fill`,
     type: 'fill',
-    source: 'ws',
+    source,
     'source-layer': 'watersheds',
     paint: {
       'fill-color': [
@@ -62,31 +102,46 @@ function addSnapshotLayers(entry) {
         'Information', '#43a047',
         NO_DATA_COLOR
       ],
-      'fill-opacity': 0.55,
+      'fill-opacity': 0,
+      'fill-opacity-transition': { duration: 0 },
     },
   }, fillBeforeId);
   map.addLayer({
-    id: 'ws-outline',
+    ...top,
+    id: `${source}-outline`,
     type: 'line',
-    source: 'ws',
+    source,
     'source-layer': 'watersheds',
     paint: {
       'line-color': OUTLINE_COLOR,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.3, 8, 0.8, 12, 1.5],
+      'line-width': OUTLINE_WIDTH,
+      'line-opacity': 0,
+      'line-opacity-transition': { duration: 0 },
     },
   }, beforeId);
+  // White copy of the borders over the colored ones, only seen during flashOutline
   map.addLayer({
-    id: 'ws-highlight',
+    ...top,
+    id: `${source}-flash`,
+    type: 'line',
+    source,
+    'source-layer': 'watersheds',
+    paint: { 'line-color': '#ffffff', 'line-width': OUTLINE_WIDTH, 'line-opacity': 0 },
+  }, beforeId);
+  map.addLayer({
+    ...top,
+    id: `${source}-highlight`,
     type: 'fill',
-    source: 'ws',
+    source,
     'source-layer': 'watersheds',
     filter: ['==', 'pfaf_id', ''],
     paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.35 },
   }, beforeId);
   map.addLayer({
-    id: 'ws-highlight-outline',
+    ...top,
+    id: `${source}-highlight-outline`,
     type: 'line',
-    source: 'ws',
+    source,
     'source-layer': 'watersheds',
     filter: ['==', 'pfaf_id', ''],
     paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
@@ -94,19 +149,65 @@ function addSnapshotLayers(entry) {
   // Invisible top fill that takes hover and clicks, so whatever is drawn
   // between it and ws-fill does not get in the way
   map.addLayer({
-    id: 'ws-hit',
+    ...top,
+    id: `${source}-hit`,
     type: 'fill',
-    source: 'ws',
+    source,
     'source-layer': 'watersheds',
     paint: { 'fill-color': '#000000', 'fill-opacity': 0 },
   }, beforeId);
-  // Snapshot swaps re-add the layers: keep them as the checkbox says
-  applyAlertsVisibility();
+  map.on('click', `${source}-hit`, onWatershedClick);
+  map.on('mouseenter', `${source}-hit`, showPointer);
+  map.on('mouseleave', `${source}-hit`, hidePointer);
+}
+
+// Shows the flash layer at once, then once that frame is drawn lets it fade and narrow
+// back to the normal borders. Only opacity and a zoom-based width change: the colored
+// border's per-alert color could not transition, and changing it would re-parse tiles
+function flashOutline(source) {
+  const id = `${source}-flash`;
+  const set = (opacity, width, duration) => {
+    map.setPaintProperty(id, 'line-opacity-transition', { duration });
+    map.setPaintProperty(id, 'line-width-transition', { duration });
+    map.setPaintProperty(id, 'line-opacity', opacity);
+    map.setPaintProperty(id, 'line-width', width);
+  };
+  set(FLASH_OPACITY, FLASH_WIDTH, 0);
+  map.once('render', () => set(0, OUTLINE_WIDTH, FLASH_MS));
 }
 
 function selectSnapshot(entry) {
-  popup.remove();
-  addSnapshotLayers(entry);
+  const source = `ws-${entry.index}`;
+  // A newer pick replaces a snapshot that is still loading
+  if (pendingSource && pendingSource !== source) setSnapshotVisibility(pendingSource, 'none');
+  pendingSource = source === currentSource ? null : source;
+  if (!pendingSource) return;
+
+  const swap = () => {
+    if (pendingSource !== source) return map.off('idle', swap);
+    if (!map.isSourceLoaded(source)) return;
+    map.off('idle', swap);
+
+    // Show the new snapshot and hide the old one in the same frame
+    popup.remove();
+    const oldSource = currentSource;
+    currentSource = source;
+    pendingSource = null;
+    setSnapshotShown(source, true);
+    flashOutline(source);
+    applyAlertsVisibility();
+    if (oldSource) {
+      setSnapshotShown(oldSource, false);
+      setSnapshotVisibility(oldSource, 'none');
+    }
+  };
+  // Drawn while still transparent, since tiles only load for visible layers; not before
+  // the source has its tile list, or MapLibre asks it for tiles it has no url for
+  loadSource(source).then(() => {
+    if (pendingSource !== source) return;
+    setSnapshotVisibility(source, 'visible');
+    map.on('idle', swap);
+  });
 }
 
 function initSnapshots(meta) {
@@ -120,6 +221,13 @@ function initSnapshots(meta) {
     opt.value = entry.index;
     opt.textContent = formatUpdatedAt(entry.updated_at);
     select.appendChild(opt);
+  }
+  for (const entry of snapshots) {
+    const source = `ws-${entry.index}`;
+    // No url yet, so nothing is fetched until the snapshot is picked
+    map.addSource(source, { type: 'vector' }); // no `tiles` either: it would override the url's
+    snapshotUrls[source] = `pmtiles://${entry.url}`;
+    addSnapshotLayers(source);
   }
   select.value = snapshots[0].index; // index 0 = most recent
   selector.classList.add('ready');
@@ -164,7 +272,7 @@ const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', close
 const gaugeAt = point => map.getLayer(GAUGES_LAYER) &&
   map.queryRenderedFeatures(point, { layers: [GAUGES_LAYER] }).length > 0;
 
-map.on('click', 'ws-hit', (e) => {
+function onWatershedClick(e) {
   if (gaugeAt(e.point)) return;
   const p = e.features[0].properties;
   const alert = p.Alert || 'No data';
@@ -199,19 +307,20 @@ map.on('click', 'ws-hit', (e) => {
     ${rowsHtml(snapshotRows)}
   `).addTo(map);
 
-  map.setFilter('ws-highlight', ['==', 'pfaf_id', p.pfaf_id]);
-  map.setFilter('ws-highlight-outline', ['==', 'pfaf_id', p.pfaf_id]);
-});
+  map.setFilter(wsLayer('highlight'), ['==', 'pfaf_id', p.pfaf_id]);
+  map.setFilter(wsLayer('highlight-outline'), ['==', 'pfaf_id', p.pfaf_id]);
+}
 
 popup.on('close', () => {
-  map.setFilter('ws-highlight', ['==', 'pfaf_id', '']);
-  map.setFilter('ws-highlight-outline', ['==', 'pfaf_id', '']);
+  if (!currentSource) return;
+  map.setFilter(wsLayer('highlight'), ['==', 'pfaf_id', '']);
+  map.setFilter(wsLayer('highlight-outline'), ['==', 'pfaf_id', '']);
 });
 
 map.on('click', (e) => {
-  const features = map.queryRenderedFeatures(e.point, { layers: ['ws-hit'] });
+  const features = currentSource ? map.queryRenderedFeatures(e.point, { layers: [wsLayer('hit')] }) : [];
   if (!features.length && !gaugeAt(e.point)) popup.remove();
 });
 
-map.on('mouseenter', 'ws-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
-map.on('mouseleave', 'ws-hit', () => { map.getCanvas().style.cursor = ''; });
+function showPointer() { map.getCanvas().style.cursor = 'pointer'; }
+function hidePointer() { map.getCanvas().style.cursor = ''; }
